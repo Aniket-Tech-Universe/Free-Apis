@@ -194,8 +194,6 @@ export default function IndexPage() {
       setLoading(true);
       setError(false);
       setApiKey(null);
-      setIsRandomKeyRateLimited(false);
-      setFallbackApiKey(undefined);
       setErrorMessage(errorMessages[Math.floor(Math.random() * errorMessages.length)]);
 
       // Simplified key logic - Removed Rate Limit Logic
@@ -922,36 +920,18 @@ export default function IndexPage() {
               </div>
 
               <h3 className="text-2xl font-bold mb-4 text-danger text-glitch">
-                {isRandomKeyRateLimited
-                  ? "Whoa There, Speed Demon! 🏎️"
-                  : "Critical System Failure (aka Tuesday)"}
+                Critical System Failure (aka Tuesday)
               </h3>
 
-              {isRandomKeyRateLimited ? (
-                <div className="space-y-4">
-                  <RateLimitInfo
-                    fallbackApiKey={fallbackApiKey}
-                    isRateLimited={isRandomKeyRateLimited}
-                    rateLimitInfo={randomKeyRateLimit}
-                  />
-                  <p className="text-default-600 font-medium">
-                    Even exposed keys need coffee breaks! ☕
-                  </p>
-                  <p className="text-sm text-default-400 italic">
-                    Or donate to unlock the "I Have No Patience" tier
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <p className="text-default-600 font-medium">
-                    {errorMessage}
-                  </p>
+              <div className="space-y-3">
+                <p className="text-default-600 font-medium">
+                  {errorMessage}
+                </p>
 
-                  <p className="text-sm italic text-default-500">
-                    Error Code: ID-10-T (It's probably your fault somehow)
-                  </p>
-                </div>
-              )}
+                <p className="text-sm italic text-default-500">
+                  Error Code: ID-10-T (It's probably your fault somehow)
+                </p>
+              </div>
 
               <Button
                 className="mt-8 btn-shake"
@@ -1001,16 +981,7 @@ export default function IndexPage() {
                     </div>
                   </div>
 
-                  {/* Rate limit info */}
-                  {randomKeyRateLimit && (
-                    <div className="mb-6">
-                      <RateLimitInfo
-                        fallbackApiKey={fallbackApiKey}
-                        isRateLimited={isRandomKeyRateLimited}
-                        rateLimitInfo={randomKeyRateLimit}
-                      />
-                    </div>
-                  )}
+
 
                   <div className="w-full mb-8">
                     <div className="relative group">

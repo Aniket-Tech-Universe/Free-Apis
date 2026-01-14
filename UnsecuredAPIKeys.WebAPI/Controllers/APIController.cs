@@ -44,66 +44,15 @@ namespace UnsecuredAPIKeys.WebAPI.Controllers
         }
 
         [HttpPost("RunPipeline")]
-        public async Task<ActionResult> RunPipeline()
+        public ActionResult RunPipeline()
         {
-             // SIMULATION MODE: Since we can't run the actual scraper .exe on the web server (Render),
-             // we will simulate the "finding" of new keys to populate the DB for the demo.
-             try 
-             {
-                 logger.LogInformation("Starting Pipeline Simulation...");
-
-                 var random = new Random();
-                 int keysToFind = random.Next(1, 4); // Find 1-3 keys per run
-                 int insertedCount = 0;
-
-                 for (int i = 0; i < keysToFind; i++)
-                 {
-                     // specific realistic prefixes
-                     var types = new[] { 
-                         (ApiTypeEnum.GoogleAI, "AIzaSy" + GenerateRandomString(33)),
-                         (ApiTypeEnum.OpenAI, "sk-proj-" + GenerateRandomString(48)),
-                         (ApiTypeEnum.ElevenLabs, GenerateRandomHex(32)),
-                         (ApiTypeEnum.HuggingFace, "hf_" + GenerateRandomString(34))
-                     };
-                     
-                     var selected = types[random.Next(types.Length)];
-                     
-                     // 80% chance of being Invalid, 20% Valid/Unverified
-                     var status = random.NextDouble() > 0.8 ? ApiStatusEnum.Valid : ApiStatusEnum.Invalid;
-
-                     var key = new APIKey
-                     {
-                         ApiKey = selected.Item2,
-                         ApiType = selected.Item1,
-                         Status = status,
-                         SearchProvider = SearchProviderEnum.GitHub,
-                         FirstFoundUTC = DateTime.UtcNow,
-                         LastFoundUTC = DateTime.UtcNow,
-                         LastCheckedUTC = DateTime.UtcNow,
-                         TimesDisplayed = 0,
-                         ErrorCount = 0
-                     };
-
-                     dbContext.APIKeys.Add(key);
-                     insertedCount++;
-                 }
-
-                 await dbContext.SaveChangesAsync();
-                 
-                 // Notify frontend of new stats (simulating real-time updates)
-                 await activeUserService.ValidateConnectionsAsync(); // Updates user count too
-
-                 return Ok(new { 
-                     message = $"Pipeline executed successfully. Scanned 50 repositories. Found {insertedCount} new exposed keys!", 
-                     newKeys = insertedCount 
-                 });
-             }
-             catch(Exception ex)
-             {
-                 logger.LogError(ex, "Failed to run pipeline simulation");
-                 return StatusCode(500, "Failed to run pipeline");
-             }
+             // SIMULATION MODE DISABLED
+             // The real pipeline runs via GitHub Actions on a schedule.
+             return Ok(new { 
+                 message = "Pipeline simulation disabled. Real scraper is running on schedule (every 20 mins)." 
+             });
         }
+
 
         private string GenerateRandomString(int length)
         {
@@ -121,55 +70,18 @@ namespace UnsecuredAPIKeys.WebAPI.Controllers
                 .Select(s => s[random.Next(s.Length)]).ToArray());
         }
 
-        [HttpPost("SeedTestData")]
-        public async Task<ActionResult> SeedTestData()
+        [HttpPost("PurgeFakeKeys")]
+        public async Task<ActionResult> PurgeFakeKeys()
         {
-            try
-            {
-                // Sample dummy keys for testing (NOT real keys - just format examples)
-                var testKeys = new[]
-                {
-                    new { Key = "DEMO_GoogleAI_Key_" + Guid.NewGuid().ToString("N")[..8], Type = ApiTypeEnum.GoogleAI, Status = ApiStatusEnum.Valid },
-                    new { Key = "DEMO_GoogleAI_Key_" + Guid.NewGuid().ToString("N")[..8], Type = ApiTypeEnum.GoogleAI, Status = ApiStatusEnum.Valid },
-                    new { Key = "DEMO_ElevenLabs_" + Guid.NewGuid().ToString("N")[..12], Type = ApiTypeEnum.ElevenLabs, Status = ApiStatusEnum.Unverified },
-                    new { Key = "DEMO_ElevenLabs_" + Guid.NewGuid().ToString("N")[..12], Type = ApiTypeEnum.ElevenLabs, Status = ApiStatusEnum.Unverified },
-                    new { Key = "DEMO_OpenAI_sk_" + Guid.NewGuid().ToString("N"), Type = ApiTypeEnum.OpenAI, Status = ApiStatusEnum.Invalid },
-                };
-
-                int added = 0;
-                foreach (var testKey in testKeys)
-                {
-                    if (await dbContext.APIKeys.AnyAsync(k => k.ApiKey == testKey.Key))
-                        continue;
-
-                    var key = new APIKey
-                    {
-                        ApiKey = testKey.Key,
-                        ApiType = testKey.Type,
-                        Status = testKey.Status,
-                        SearchProvider = SearchProviderEnum.GitHub,
-                        FirstFoundUTC = DateTime.UtcNow.AddDays(-30),
-                        LastFoundUTC = DateTime.UtcNow,
-                        LastCheckedUTC = DateTime.UtcNow, // Required for GetRandomKey's 24-hour filter
-                        TimesDisplayed = new Random().Next(10, 100),
-                        ErrorCount = 0
-                    };
-                    
-                    dbContext.APIKeys.Add(key);
-                    added++;
-                }
-
-                await dbContext.SaveChangesAsync();
-                logger.LogInformation("Seeded {Count} test keys", added);
-                
-                return Ok(new { message = $"Seeded {added} test keys successfully!", totalKeys = await dbContext.APIKeys.CountAsync() });
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to seed test data");
-                return StatusCode(500, $"Failed to seed data: {ex.Message}");
-            }
+            // Deletes keys that were seeded as demos
+            var demoKeys = await dbContext.APIKeys.Where(k => k.ApiKey.StartsWith("DEMO_")).ToListAsync();
+            dbContext.APIKeys.RemoveRange(demoKeys);
+            await dbContext.SaveChangesAsync();
+            
+            return Ok(new { message = $"Purged {demoKeys.Count} fake DEMO keys." });
         }
+
+
 
         [HttpPost("FixExistingKeys")]
         public async Task<ActionResult> FixExistingKeys()

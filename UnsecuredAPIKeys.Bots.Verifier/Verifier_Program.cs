@@ -1452,11 +1452,13 @@ namespace UnsecuredAPIKeys.Bots.Verifier
 
             services.AddDbContext<DBContext>(options =>
             {
-                var connectionString = _configuration?.GetConnectionString("DefaultConnection");
+                var connectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING")
+                    ?? _configuration?.GetConnectionString("DefaultConnection")
+                    ?? "Host=localhost;Database=UnsecuredAPIKeys;Username=postgres;Password=devpassword;Port=5432";
                     
                 if (string.IsNullOrEmpty(connectionString))
                 {
-                    Console.WriteLine("WARNING: Connection string 'DefaultConnection' not found in configuration!");
+                    Console.WriteLine("WARNING: Connection string not found in configuration or environment!");
                 }
                     
                 options.UseNpgsql(connectionString, npgsqlOptions =>

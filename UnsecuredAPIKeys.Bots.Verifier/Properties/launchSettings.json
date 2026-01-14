@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "UnsecuredAPIKeys.Bots.Verifier": {
+      "commandName": "Project"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
+    }
+  }
+}

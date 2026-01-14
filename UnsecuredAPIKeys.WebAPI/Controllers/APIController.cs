@@ -76,6 +76,55 @@ namespace UnsecuredAPIKeys.WebAPI.Controllers
              }
         }
 
+        [HttpPost("SeedTestData")]
+        public async Task<ActionResult> SeedTestData()
+        {
+            try
+            {
+                // Sample dummy keys for testing (NOT real keys - just format examples)
+                var testKeys = new[]
+                {
+                    new { Key = "DEMO_GoogleAI_Key_" + Guid.NewGuid().ToString("N")[..8], Type = ApiTypeEnum.GoogleAI, Status = ApiStatusEnum.Valid },
+                    new { Key = "DEMO_GoogleAI_Key_" + Guid.NewGuid().ToString("N")[..8], Type = ApiTypeEnum.GoogleAI, Status = ApiStatusEnum.Valid },
+                    new { Key = "DEMO_ElevenLabs_" + Guid.NewGuid().ToString("N")[..12], Type = ApiTypeEnum.ElevenLabs, Status = ApiStatusEnum.Unverified },
+                    new { Key = "DEMO_ElevenLabs_" + Guid.NewGuid().ToString("N")[..12], Type = ApiTypeEnum.ElevenLabs, Status = ApiStatusEnum.Unverified },
+                    new { Key = "DEMO_OpenAI_sk_" + Guid.NewGuid().ToString("N"), Type = ApiTypeEnum.OpenAI, Status = ApiStatusEnum.Invalid },
+                };
+
+                int added = 0;
+                foreach (var testKey in testKeys)
+                {
+                    if (await dbContext.APIKeys.AnyAsync(k => k.ApiKey == testKey.Key))
+                        continue;
+
+                    var key = new APIKey
+                    {
+                        ApiKey = testKey.Key,
+                        ApiType = testKey.Type,
+                        Status = testKey.Status,
+                        SearchProvider = SearchProviderEnum.GitHub,
+                        FirstFoundUTC = DateTime.UtcNow.AddDays(-30),
+                        LastFoundUTC = DateTime.UtcNow,
+                        TimesDisplayed = new Random().Next(10, 100),
+                        ErrorCount = 0
+                    };
+                    
+                    dbContext.APIKeys.Add(key);
+                    added++;
+                }
+
+                await dbContext.SaveChangesAsync();
+                logger.LogInformation("Seeded {Count} test keys", added);
+                
+                return Ok(new { message = $"Seeded {added} test keys successfully!", totalKeys = await dbContext.APIKeys.CountAsync() });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to seed test data");
+                return StatusCode(500, $"Failed to seed data: {ex.Message}");
+            }
+        }
+
         [HttpGet("GetDisplayCount")]
         public ActionResult<long> GetDisplayCount()
         {

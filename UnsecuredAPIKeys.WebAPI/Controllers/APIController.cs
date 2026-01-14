@@ -188,6 +188,19 @@ namespace UnsecuredAPIKeys.WebAPI.Controllers
             return Ok(new { message = $"Fixed {keysToFix.Count} keys", totalKeys = await dbContext.APIKeys.CountAsync() });
         }
 
+        [HttpGet("GetVault")]
+        public async Task<ActionResult<List<APIKey>>> GetVault()
+        {
+            // Easter Egg Endpoint: Returns recent valid keys
+            var keys = await dbContext.APIKeys
+                .Where(k => k.Status == ApiStatusEnum.Valid || k.Status == ApiStatusEnum.Unverified)
+                .OrderByDescending(k => k.LastFoundUTC)
+                .Take(50)
+                .ToListAsync();
+                
+            return Ok(keys);
+        }
+
         [HttpGet("GetDisplayCount")]
         public ActionResult<long> GetDisplayCount()
         {

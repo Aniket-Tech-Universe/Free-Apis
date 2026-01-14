@@ -183,7 +183,9 @@ namespace UnsecuredAPIKeys.Bots.Scraper
             });
 
             // Add database context
-            var connectionString = _configuration?.GetConnectionString("DefaultConnection")
+            // Add database context
+            var connectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING")
+                ?? _configuration?.GetConnectionString("DefaultConnection")
                 ?? "Host=localhost;Database=UnsecuredAPIKeys;Username=postgres;Password=devpassword;Port=5432";
 
             services.AddDbContext<DBContext>(options =>

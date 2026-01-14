@@ -4,7 +4,6 @@ WORKDIR /src
 # Copy csproj files and restore dependencies
 COPY ["UnsecuredAPIKeys.WebAPI/UnsecuredAPIKeys.WebAPI.csproj", "UnsecuredAPIKeys.WebAPI/"]
 COPY ["UnsecuredAPIKeys.Data/UnsecuredAPIKeys.Data.csproj", "UnsecuredAPIKeys.Data/"]
-COPY ["UnsecuredAPIKeys.Common/UnsecuredAPIKeys.Common.csproj", "UnsecuredAPIKeys.Common/"]
 RUN dotnet restore "UnsecuredAPIKeys.WebAPI/UnsecuredAPIKeys.WebAPI.csproj"
 
 # Copy everything else and build

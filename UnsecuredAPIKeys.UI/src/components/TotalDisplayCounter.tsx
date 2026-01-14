@@ -241,7 +241,7 @@ export default function TotalDisplayCounter() {
               )}
             </div>
             <div className="p-3 border-t border-success/20 bg-black/40 text-[10px] text-success/40 text-center font-mono uppercase">
-              // FOR EDUCATIONAL PURPOSES ONLY // DO NOT USE MALICIOUSLY //
+              {`// FOR EDUCATIONAL PURPOSES ONLY // DO NOT USE MALICIOUSLY //`}
             </div>
           </div>
         </div>

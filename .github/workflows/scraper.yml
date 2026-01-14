@@ -2,8 +2,8 @@ name: API Key Scraper Bot
 
 on:
   schedule:
-    # Run every 4 hours
-    - cron: '0 */4 * * *'
+    # Run every 20 minutes
+    - cron: '*/20 * * * *'
   # Allow manual trigger from GitHub Actions tab
   workflow_dispatch:
 

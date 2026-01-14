@@ -5,6 +5,7 @@ namespace UnsecuredAPIKeys.Providers.Common
     public enum ValidationAttemptStatus
     {
         Valid,                 // Key is valid and working.
+        ValidNoCredits,        // Key is valid but has no credits/quota (e.g. 429 or quota error).
         Unauthorized,          // Key is explicitly unauthorized (e.g., HTTP 401).
         HttpError,             // An HTTP error occurred (e.g., 403, 404, 429, 5xx).
         NetworkError,          // A network-level error occurred (e.g., DNS, timeout, connection refused).
@@ -49,6 +50,9 @@ namespace UnsecuredAPIKeys.Providers.Common
         public static ValidationResult HasNetworkError(string detail) =>
             new() { Status = ValidationAttemptStatus.NetworkError, Detail = detail };
         
+        public static ValidationResult IsValidButNoCredits(HttpStatusCode statusCode) =>
+            new() { Status = ValidationAttemptStatus.ValidNoCredits, HttpStatusCode = statusCode };
+            
         public static ValidationResult HasProviderSpecificError(string detail) =>
             new() { Status = ValidationAttemptStatus.ProviderSpecificError, Detail = detail };
     }

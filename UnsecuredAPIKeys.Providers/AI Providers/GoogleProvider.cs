@@ -72,15 +72,15 @@ namespace UnsecuredAPIKeys.Providers.AI_Providers
             }
             else if ((int)modelResponse.StatusCode == 429)
             {
-                // Rate limited means the key is valid
-                return ValidationResult.Success(modelResponse.StatusCode);
+                // Rate limited means the key is valid but has no credits/quota
+                return ValidationResult.IsValidButNoCredits(modelResponse.StatusCode);
             }
             else
             {
                 // Check for quota/billing issues
                 if (ContainsAny(responseBody, QuotaIndicators))
                 {
-                    return ValidationResult.Success(modelResponse.StatusCode);
+                    return ValidationResult.IsValidButNoCredits(modelResponse.StatusCode);
                 }
                 
                 return ValidationResult.HasHttpError(modelResponse.StatusCode, 

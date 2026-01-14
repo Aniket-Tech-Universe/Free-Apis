@@ -1660,6 +1660,7 @@ namespace UnsecuredAPIKeys.Bots.Verifier
             return attemptStatus switch
             {
                 ValidationAttemptStatus.Valid => ApiStatusEnum.Valid,
+                ValidationAttemptStatus.ValidNoCredits => ApiStatusEnum.ValidNoCredits,
                 ValidationAttemptStatus.Unauthorized => ApiStatusEnum.Invalid,  // ONLY this means bad key!
                 ValidationAttemptStatus.HttpError => ApiStatusEnum.Error,       // Service issues - don't mark as invalid
                 ValidationAttemptStatus.NetworkError => ApiStatusEnum.Error,    // Infrastructure issues - don't mark as invalid

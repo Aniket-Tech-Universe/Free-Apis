@@ -34,21 +34,31 @@ namespace UnsecuredAPIKeys.Providers.AI_Providers
 
         protected override async Task<ValidationResult> ValidateKeyWithHttpClientAsync(string apiKey, HttpClient httpClient)
         {
-            // Use Google's models endpoint for lightweight validation
-            using var modelRequest = new HttpRequestMessage(HttpMethod.Get, "https://generativelanguage.googleapis.com/v1beta/models");
-            // Google uses x-goog-api-key header
-            modelRequest.Headers.Add("x-goog-api-key", apiKey);
+            // Use generateContent to test actual quota usage (models endpoint is often free/unthrottled)
+            using var modelRequest = new HttpRequestMessage(HttpMethod.Post, "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey);
+            
+            // Minimal payload for validation
+            var jsonContent = "{\"contents\":[{\"parts\":[{\"text\":\"Hi\"}]}]}";
+            modelRequest.Content = new StringContent(jsonContent, System.Text.Encoding.UTF8, "application/json");
             
             var modelResponse = await httpClient.SendAsync(modelRequest);
             string responseBody = await modelResponse.Content.ReadAsStringAsync();
 
-            _logger?.LogDebug("Google AI models API response: Status={StatusCode}, Body={Body}",
+            _logger?.LogDebug("Google AI generateContent response: Status={StatusCode}, Body={Body}",
                 modelResponse.StatusCode, TruncateResponse(responseBody));
 
             if (IsSuccessStatusCode(modelResponse.StatusCode))
             {
-                // Parse the models from the response
-                var models = ParseGoogleModels(responseBody);
+                // We validated using gemini-1.5-flash
+                var models = new List<ModelInfo> 
+                { 
+                    new ModelInfo 
+                    { 
+                        ModelId = "gemini-1.5-flash", 
+                        DisplayName = "Gemini 1.5 Flash (Verified)",
+                        ModelGroup = "Gemini 1.5"
+                    } 
+                };
                 return ValidationResult.Success(modelResponse.StatusCode, models);
             }
             else if (modelResponse.StatusCode == HttpStatusCode.Unauthorized || 

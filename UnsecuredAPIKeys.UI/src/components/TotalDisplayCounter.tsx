@@ -226,27 +226,32 @@ export default function TotalDisplayCounter() {
                         {provider} ({keys.length})
                       </h3>
                       <div className="space-y-2">
-                        {keys.map((key: any, i: number) => (
-                          <div key={i} className={`flex flex-col md:flex-row md:items-center justify-between bg-white/5 p-3 rounded border transition-colors gap-2 ${key.status === 'Valid' || key.status === 'ValidNoCredits' ? 'border-success/30 hover:border-success/60' : 'border-white/10 hover:border-warning/40'}`}>
-                            <div className="overflow-hidden">
-                              <div className="flex items-center gap-2 text-xs text-neutral-400 mb-1">
-                                <span className={`px-1.5 rounded font-bold ${key.status === 'Valid' || key.status === 'ValidNoCredits' ? 'bg-success/20 text-success' : 'bg-warning/20 text-warning'}`}>
-                                  {key.status === 'Valid' || key.status === 'ValidNoCredits' ? 'VERIFIED' : 'UNVERIFIED'}
-                                </span>
-                                <span>{new Date(key.lastFoundUTC).toLocaleDateString()}</span>
+                        {keys.map((key: any, i: number) => {
+                          const isValid = key.status === 'Valid';
+                          const isExhausted = key.status === 'ValidNoCredits';
+                          return (
+                            <div key={i} className={`flex flex-col md:flex-row md:items-center justify-between bg-white/5 p-3 rounded border transition-colors gap-2 ${isValid ? 'border-success/30 hover:border-success/60' : isExhausted ? 'border-danger/30 hover:border-danger/60' : 'border-white/10 hover:border-warning/40'}`}>
+                              <div className="overflow-hidden">
+                                <div className="flex items-center gap-2 text-xs text-neutral-400 mb-1">
+                                  <span className={`px-1.5 rounded font-bold ${isValid ? 'bg-success/20 text-success' : isExhausted ? 'bg-danger/20 text-danger' : 'bg-warning/20 text-warning'}`}>
+                                    {isValid ? 'VERIFIED' : isExhausted ? 'EXHAUSTED' : 'UNVERIFIED'}
+                                  </span>
+                                  <span>{new Date(key.lastFoundUTC).toLocaleDateString()}</span>
+                                </div>
+                                <code className={`block truncate max-w-md ${isValid ? 'text-success' : isExhausted ? 'text-danger' : 'text-neutral-400'}`} title={key.apiKey}>
+                                  {key.apiKey}
+                                </code>
                               </div>
-                              <code className={`block truncate max-w-md ${key.status === 'Valid' || key.status === 'ValidNoCredits' ? 'text-success' : 'text-neutral-400'}`} title={key.apiKey}>
-                                {key.apiKey}
-                              </code>
+
+                              <button
+                                onClick={(e) => { e.stopPropagation(); copyToClipboard(key.apiKey); }}
+                                className="shrink-0 px-3 py-1.5 bg-success/10 hover:bg-success/20 text-success border border-success/30 rounded text-xs uppercase tracking-wider"
+                              >
+                                Copy
+                              </button>
                             </div>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); copyToClipboard(key.apiKey); }}
-                              className="shrink-0 px-3 py-1.5 bg-success/10 hover:bg-success/20 text-success border border-success/30 rounded text-xs uppercase tracking-wider"
-                            >
-                              Copy
-                            </button>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   ))}

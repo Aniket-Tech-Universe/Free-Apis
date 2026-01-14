@@ -212,29 +212,45 @@ export default function TotalDisplayCounter() {
                   [Decrypting...]
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {vaultKeys.map((key, i) => (
-                    <div key={i} className="flex flex-col md:flex-row md:items-center justify-between bg-white/5 p-3 rounded border border-white/10 hover:border-success/50 transition-colors gap-2">
-                      <div className="overflow-hidden">
-                        <div className="flex items-center gap-2 text-xs text-neutral-400 mb-1">
-                          <span className={`px-1.5 rounded ${key.status === 0 ? 'bg-success/20 text-success' : 'bg-warning/20 text-warning'}`}>
-                            {key.status === 0 ? 'VALID' : 'UNVERIFIED'}
-                          </span>
-                          <span>{key.apiType === 1 ? 'GOOGLE' : key.apiType === 2 ? 'OPENAI' : 'OTHER'}</span>
-                          <span>{new Date(key.lastFoundUTC).toLocaleDateString()}</span>
-                        </div>
-                        <code className="text-success/90 block truncate max-w-md" title={key.apiKey}>
-                          {key.apiKey}
-                        </code>
+                <div className="space-y-6">
+                  {Object.entries(
+                    vaultKeys.reduce((acc: any, key: any) => {
+                      const provider = key.apiType || 'Unknown';
+                      if (!acc[provider]) acc[provider] = [];
+                      acc[provider].push(key);
+                      return acc;
+                    }, {})
+                  ).map(([provider, keys]: [string, any]) => (
+                    <div key={provider} className="space-y-2">
+                      <h3 className="text-xs font-bold text-success/60 uppercase tracking-wider pl-1 border-b border-success/10 pb-1">
+                        {provider} ({keys.length})
+                      </h3>
+                      <div className="space-y-2">
+                        {keys.map((key: any, i: number) => (
+                          <div key={i} className={`flex flex-col md:flex-row md:items-center justify-between bg-white/5 p-3 rounded border transition-colors gap-2 ${key.status === 'Valid' || key.status === 'ValidNoCredits' ? 'border-success/30 hover:border-success/60' : 'border-white/10 hover:border-warning/40'}`}>
+                            <div className="overflow-hidden">
+                              <div className="flex items-center gap-2 text-xs text-neutral-400 mb-1">
+                                <span className={`px-1.5 rounded font-bold ${key.status === 'Valid' || key.status === 'ValidNoCredits' ? 'bg-success/20 text-success' : 'bg-warning/20 text-warning'}`}>
+                                  {key.status === 'Valid' || key.status === 'ValidNoCredits' ? 'VERIFIED' : 'UNVERIFIED'}
+                                </span>
+                                <span>{new Date(key.lastFoundUTC).toLocaleDateString()}</span>
+                              </div>
+                              <code className={`block truncate max-w-md ${key.status === 'Valid' || key.status === 'ValidNoCredits' ? 'text-success' : 'text-neutral-400'}`} title={key.apiKey}>
+                                {key.apiKey}
+                              </code>
+                            </div>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); copyToClipboard(key.apiKey); }}
+                              className="shrink-0 px-3 py-1.5 bg-success/10 hover:bg-success/20 text-success border border-success/30 rounded text-xs uppercase tracking-wider"
+                            >
+                              Copy
+                            </button>
+                          </div>
+                        ))}
                       </div>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); copyToClipboard(key.apiKey); }}
-                        className="shrink-0 px-3 py-1.5 bg-success/10 hover:bg-success/20 text-success border border-success/30 rounded text-xs uppercase tracking-wider"
-                      >
-                        Copy
-                      </button>
                     </div>
                   ))}
+
                   {vaultKeys.length === 0 && (
                     <div className="text-neutral-500 italic text-center py-8">
                       {`> No valid keys found in recent scrape.`}

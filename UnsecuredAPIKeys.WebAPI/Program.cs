@@ -14,9 +14,9 @@ namespace UnsecuredAPIKeys.WebAPI
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Get connection string from configuration or environment
-            var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
-                ?? Environment.GetEnvironmentVariable("CONNECTION_STRING")
+            // Get connection string - prioritize environment variable for production (Render)
+            var connectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING")
+                ?? builder.Configuration.GetConnectionString("DefaultConnection") 
                 ?? "Host=localhost;Database=UnsecuredAPIKeys;Username=postgres;Password=your_password;Port=5432";
 
             builder.Services.AddDbContext<DBContext>(options =>

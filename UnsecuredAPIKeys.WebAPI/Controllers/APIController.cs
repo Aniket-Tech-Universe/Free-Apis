@@ -73,12 +73,15 @@ namespace UnsecuredAPIKeys.WebAPI.Controllers
         [HttpPost("PurgeFakeKeys")]
         public async Task<ActionResult> PurgeFakeKeys()
         {
-            // Deletes keys that were seeded as demos
-            var demoKeys = await dbContext.APIKeys.Where(k => k.ApiKey.StartsWith("DEMO_")).ToListAsync();
-            dbContext.APIKeys.RemoveRange(demoKeys);
+            // Deletes keys that were seeded as demos OR are placeholders (containing xxxx)
+            var fakeKeys = await dbContext.APIKeys
+                .Where(k => k.ApiKey.StartsWith("DEMO_") || k.ApiKey.Contains("xxxx") || k.ApiKey.Contains("XXXX"))
+                .ToListAsync();
+                
+            dbContext.APIKeys.RemoveRange(fakeKeys);
             await dbContext.SaveChangesAsync();
             
-            return Ok(new { message = $"Purged {demoKeys.Count} fake DEMO keys." });
+            return Ok(new { message = $"Purged {fakeKeys.Count} fake/placeholder keys." });
         }
 
 
@@ -838,7 +841,8 @@ namespace UnsecuredAPIKeys.WebAPI.Controllers
             // Showing only valid keys for the last 24 hours
             var query = dbContext.APIKeys
                 .Where(s => s.Status == ApiStatusEnum.Valid &&
-                            s.LastCheckedUTC > DateTime.UtcNow.AddHours(-24));
+                            s.LastCheckedUTC > DateTime.UtcNow.AddHours(-24) &&
+                            !s.ApiKey.StartsWith("DEMO_"));
 
             if (apiType.HasValue)
             {

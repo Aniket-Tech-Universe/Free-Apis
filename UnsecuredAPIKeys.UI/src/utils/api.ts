@@ -3,12 +3,12 @@ import * as Sentry from "@sentry/react";
 import { ApiResponse, RateLimitResponse } from "@/types";
 
 // API base URL from environment variables
-// In production (Vercel), use the original project's API; locally use localhost
+// In production (Vercel), use our Render API; locally use localhost
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   (typeof window !== 'undefined' && window.location.hostname === 'localhost'
     ? "http://localhost:7227"
-    : "https://api.unsecuredapikeys.com");
+    : "https://unsecured-api.onrender.com");
 
 // Debug logging in development
 if (process.env.NODE_ENV === 'development') {

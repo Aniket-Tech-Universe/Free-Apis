@@ -7,19 +7,8 @@ import Head from "next/head";
 import Cookies from "js-cookie";
 
 import { title, subtitle } from "@/components/primitives";
-import { GithubIcon, DiscordIcon } from "@/components/icons";
-import DefaultLayout from "@/layouts/default";
-import { ApiKey, KeyStats, ApiKeyType, RateLimitInfo as RateLimitInfoType } from "@/types";
-import { fetchWithRateLimit, cancelRequests } from "@/utils/api";
-import { analytics } from "@/utils/analytics";
-import Disclaimer from "@/components/Disclaimer";
-import DiscordLogin from "@/components/DiscordLogin";
-import RateLimitInfo from "@/components/RateLimitInfo";
-import TotalDisplayCounter from "@/components/TotalDisplayCounter";
-import ActiveUserCounter from "@/components/ActiveUserCounter";
-import AnimatedNumber from "@/components/AnimatedNumber";
-import DonationCounter from "@/components/DonationCounter";
-import PayPalDonateButton from "@/components/PayPalDonateButton";
+// Donation/Discord components removed
+import { Tooltip } from "@heroui/tooltip";
 
 // Enhanced Loading Messages
 const loadingMessages = [
@@ -61,16 +50,30 @@ export default function IndexPage() {
   const [showDrawer, setShowDrawer] = useState<boolean | null>(null);
   const [loadingMessage, setLoadingMessage] = useState(loadingMessages[0]);
   const [errorMessage, setErrorMessage] = useState(errorMessages[0]);
-
-  // Rate limiting states
-  const [randomKeyRateLimit, setRandomKeyRateLimit] = useState<
-    RateLimitInfoType | undefined
-  >();
-  const [isRandomKeyRateLimited, setIsRandomKeyRateLimited] = useState(false);
-  const [fallbackApiKey, setFallbackApiKey] = useState<ApiKey | undefined>();
-  const [rateLimitInfo, setRateLimitInfo] = useState<RateLimitInfo | null>(null);
-  const [isRateLimitDrawerOpen, setIsRateLimitDrawerOpen] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+
+  // Pipeline State
+  const [pipelineRunning, setPipelineRunning] = useState(false);
+  const [pipelineStatus, setPipelineStatus] = useState("");
+
+  const handleRunPipeline = async () => {
+    setPipelineRunning(true);
+    setPipelineStatus("Triggering Pipeline...");
+    try {
+      const res = await fetchWithRateLimit("/API/RunPipeline", { method: "POST", requestId: "pipeline" });
+      if (res.data) {
+        setPipelineStatus("Pipeline Started! 🚀");
+        setTimeout(() => setPipelineStatus(""), 3000);
+      } else {
+        setPipelineStatus("Failed to start.");
+      }
+    } catch (e) {
+      console.error(e);
+      setPipelineStatus("Error triggering pipeline.");
+    } finally {
+      setPipelineRunning(false);
+    }
+  };
 
   // Enhanced API type colors with glow effects
   const apiTypeColors: Record<string, { bg: string; text: string; border: string; glow: string }> = {
@@ -187,11 +190,10 @@ export default function IndexPage() {
       setFallbackApiKey(undefined);
       setErrorMessage(errorMessages[Math.floor(Math.random() * errorMessages.length)]);
 
-      let endpoint = "/API/GetRandomKey";
-
-      if (selectedKeyType !== "Random") {
-        endpoint += `?type=${selectedKeyType}`;
-      }
+      // Simplified key logic - Removed Rate Limit Logic
+      const endpoint = selectedKeyType === "Random"
+        ? "/API/GetRandomKey"
+        : `/API/GetRandomKey?type=${selectedKeyType}`;
 
       const response = await fetchWithRateLimit<ApiKey>(endpoint, {
         requestId: "randomKey",
@@ -206,19 +208,6 @@ export default function IndexPage() {
       } else {
         setLoading(false);
         setError(true);
-
-        if (response.isRateLimited && response.rateLimit) {
-          setIsRandomKeyRateLimited(true);
-          if (response.fallbackApiKey) {
-            setFallbackApiKey(response.fallbackApiKey);
-            setApiKey(response.fallbackApiKey);
-            setError(false);
-          }
-        }
-      }
-
-      if (response.rateLimit) {
-        setRandomKeyRateLimit(response.rateLimit);
       }
     };
 
@@ -228,33 +217,6 @@ export default function IndexPage() {
       cancelRequests("randomKey");
     };
   }, [selectedKeyType, refreshTrigger]);
-
-  // Fetch Rate Limit Info
-  useEffect(() => {
-    const fetchRateLimitInfo = async () => {
-      try {
-        const response = await fetchWithRateLimit<RateLimitInfo>("/API/GetRateLimitInfo", {
-          requestId: "rateLimitInfo",
-        });
-
-        if (response.data) {
-          setRateLimitInfo(response.data);
-        }
-      } catch (error) {
-        console.error("Failed to fetch rate limit info:", error);
-        // Fallback to default values if API fails
-        setRateLimitInfo({
-          maxRequests: 5,
-          discordMaxRequests: 20,
-          timeWindowHours: 1,
-          description: "Fair usage limits to ensure service availability for all users",
-          note: "After reaching the limit, a fallback key will be provided instead of blocking access"
-        });
-      }
-    };
-
-    fetchRateLimitInfo();
-  }, []);
 
   // Fetch Key Statistics
   useEffect(() => {
@@ -281,7 +243,7 @@ export default function IndexPage() {
       if (response.error && !response.cancelled) {
         console.error("Failed to fetch key statistics:", response.error);
         errorCount++;
-        
+
         const delay = Math.min(baseDelay * Math.pow(2, errorCount - 1), 300000);
         if (interval) {
           clearInterval(interval);
@@ -292,7 +254,7 @@ export default function IndexPage() {
 
     const handleVisibilityChange = () => {
       isVisible = !document.hidden;
-      
+
       if (isVisible && !interval) {
         fetchKeyStats();
         interval = setInterval(fetchKeyStats, baseDelay);
@@ -445,7 +407,7 @@ export default function IndexPage() {
     const items = [
       { key: "Random", label: "Random (Surprise me! 🎲)" }
     ];
-    
+
     apiKeyTypes.forEach((type) => {
       items.push({
         key: type.apiTypeId.toString(),
@@ -472,7 +434,7 @@ export default function IndexPage() {
   const handleSelectionChange = (key: React.Key | undefined) => {
     const newKeyType = (key === undefined ? "Random" : key) as string | number;
 
-    const selectedTypeName = newKeyType === "Random" ? "Random" : 
+    const selectedTypeName = newKeyType === "Random" ? "Random" :
       apiKeyTypes.find(type => type.apiTypeId === newKeyType)?.apiType || "Unknown";
     analytics.trackApiTypeSelection(selectedTypeName);
 
@@ -798,7 +760,7 @@ export default function IndexPage() {
           }
         }
       `}</style>
-      
+
       <Head>
         <title>Unsecured API Keys - The Wall of "My Boss Hasn't Found Out Yet™"</title>
         <meta
@@ -808,7 +770,7 @@ export default function IndexPage() {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="keywords" content="API keys, security, GitHub, exposed secrets, vulnerability, cybersecurity, code security, developer tools, LLM bills, career endings" />
         <link rel="canonical" href="https://unsecuredapikeys.com/" />
-        
+
         {/* Open Graph Meta Tags */}
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="Unsecured API Keys" />
@@ -820,14 +782,14 @@ export default function IndexPage() {
         <meta property="og:image:height" content="630" />
         <meta property="og:image:alt" content="Unsecured API Keys - Security Tool for Developers Who Like Their Jobs" />
         <meta property="og:locale" content="en_US" />
-        
+
         {/* Twitter Card Meta Tags */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Unsecured API Keys - The Wall of 'My Boss Hasn't Found Out Yet™'" />
         <meta name="twitter:description" content="Where your private keys go to become public celebrities! Help developers avoid that awkward $50,000 LLM bill." />
         <meta name="twitter:image" content="https://unsecuredapikeys.com/og-image.png" />
         <meta name="twitter:image:alt" content="Unsecured API Keys - Security Tool for Developers Who Like Their Jobs" />
-        
+
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
@@ -843,7 +805,7 @@ export default function IndexPage() {
                 <TotalDisplayCounter />
               </Suspense>
             </div>
-            
+
             <div className="active-user-glow animate-pulse-glow-green">
               <Suspense fallback={<div className="animate-pulse">Loading...</div>}>
                 <ActiveUserCounter />
@@ -864,131 +826,24 @@ export default function IndexPage() {
               <span className={title({ size: "lg" }) + " text-gradient-animate"}>Unsecured&nbsp;</span>
               <span className={title({ color: "violet", size: "lg" }) + " text-glitch"}>API Keys&nbsp;</span>
             </h1>
-            
+
+            {/* Enhanced Hero Buttons */}
             {/* Enhanced Hero Buttons */}
             <div className="mt-8 animate-float flex flex-col sm:flex-row gap-4 items-center justify-center">
-              <Suspense fallback={<div className="animate-pulse">Loading PayPal...</div>}>
-                <PayPalDonateButton 
-                  location="hero_section" 
-                  size="lg" 
-                  className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300 btn-glow"
-                />
-              </Suspense>
-              
-              <Suspense fallback={<div className="animate-pulse">Loading...</div>}>
-                <DiscordLogin />
-              </Suspense>
+              <Button
+                className="bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold shadow-lg hover:shadow-xl transition-all duration-300 btn-glow min-w-[200px]"
+                size="lg"
+                onPress={handleRunPipeline}
+                isLoading={pipelineRunning}
+              >
+                {pipelineStatus || "🔥 Run Pipeline Now"}
+              </Button>
             </div>
-            <div className="text-center mt-2">
-              <p className="text-xs text-default-400 italic animate-pulse">
-                (Hamsters need premium pellets • Developers need emotional support)
-              </p>
-            </div>
+            <p className="text-default-400 mt-4 italic text-sm">(Directly triggers Scraper & Verifier Bots)</p>
           </div>
-          
 
-          {/* Discord Rate Limit Benefits Section - Collapsible */}
-          <div className="w-full max-w-4xl mt-8 mb-8">
-            <div className="bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 dark:from-indigo-950/30 dark:via-purple-950/30 dark:to-pink-950/30 rounded-2xl border border-indigo-200 dark:border-indigo-800 card-elegant animate-fade-in overflow-hidden">
-              {/* Drawer Header - Always Visible */}
-              <div 
-                className="p-6 cursor-pointer hover:bg-white/5 transition-colors duration-300"
-                onClick={() => setIsRateLimitDrawerOpen(!isRateLimitDrawerOpen)}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <DiscordIcon className="h-8 w-8 text-indigo-500" />
-                    <h3 className="text-2xl font-bold text-gradient-animate">
-                      Level Up Your API Access For Free!
-                    </h3>
-                    <DiscordIcon className="h-8 w-8 text-indigo-500" />
-                  </div>
-                  <div className={`transition-transform duration-300 ${isRateLimitDrawerOpen ? 'rotate-180' : ''}`}>
-                    <svg 
-                      className="h-6 w-6 text-indigo-500"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                </div>
-                <p className="text-default-600 mt-2 text-center">
-                  Join our Discord for <strong className="text-green-500">{rateLimitInfo?.discordMaxRequests || 20} requests/hour</strong> instead of {rateLimitInfo?.maxRequests || 5}! 
-                  <span className="text-indigo-500 font-medium ml-1">{isRateLimitDrawerOpen ? 'Click to hide' : 'Click for details'}</span>
-                </p>
-              </div>
-              
-              {/* Collapsible Content */}
-              <div 
-                className={`transition-all duration-500 ease-in-out ${
-                  isRateLimitDrawerOpen ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'
-                }`}
-                style={{ overflow: 'hidden' }}
-              >
-                <div className="px-8 pb-8">
-                  <div className="grid md:grid-cols-2 gap-8">
-                    <div className="text-center space-y-3">
-                      <div className="bg-red-100 dark:bg-red-950/30 rounded-xl p-4 border border-red-200 dark:border-red-800">
-                        <h4 className="font-bold text-red-600 dark:text-red-400 mb-2">😢 Anonymous User</h4>
-                        <div className="text-3xl font-bold text-red-600 dark:text-red-400 mb-1">{rateLimitInfo?.maxRequests || 5}</div>
-                        <p className="text-sm text-red-600 dark:text-red-400">requests per hour</p>
-                        <p className="text-xs text-red-500 mt-1">Basic peasant tier</p>
-                      </div>
-                    </div>
-                    
-                    <div className="text-center space-y-3">
-                      <div className="bg-green-100 dark:bg-green-950/30 rounded-xl p-4 border border-green-200 dark:border-green-800 hover:scale-105 transition-transform">
-                        <h4 className="font-bold text-green-600 dark:text-green-400 mb-2">🎉 Discord Server Member</h4>
-                        <div className="text-3xl font-bold text-green-600 dark:text-green-400 mb-1">{rateLimitInfo?.discordMaxRequests || 20}</div>
-                        <p className="text-sm text-green-600 dark:text-green-400">requests per hour</p>
-                        <p className="text-xs text-green-500 mt-1">VIP chaos enthusiast!</p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-6 text-center">
-                    <p className="text-default-600 mb-4 max-w-2xl mx-auto">
-                      Join our Discord server and get <strong className="text-green-500">more API calls</strong>! 
-                      Plus, you'll get to watch other developers panic in real-time! 🍿
-                    </p>
-                    
-                    <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                      <Button
-                        className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300 min-w-[200px]"
-                        onPress={() => {
-                          if (typeof window !== "undefined" && (window as any).gtag) {
-                            (window as any).gtag("event", "discord_join_click", {
-                              event_category: "rate_limit_section",
-                              event_label: "discord_server_link",
-                            });
-                          }
-                          window.open("https://discord.gg/SyjgFTd7Ee", "_blank");
-                        }}
-                        radius="full"
-                        size="lg"
-                        startContent={<DiscordIcon className="h-5 w-5" />}
-                        variant="shadow"
-                      >
-                        Join Discord Server
-                      </Button>
-                      
-                      <div className="text-center">
-                        <p className="text-sm text-default-500 italic">
-                          Login above for instant rate limit upgrade! ⚡
-                        </p>
-                        <p className="text-xs text-default-400">
-                          (Detection is automatic - no manual verification needed!)
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          
+          {/* Rate Limit Banner Removed */}
+
           {/* Enhanced API Key Type Dropdown */}
           <div className="flex justify-center w-full max-w-xs mt-4 mb-8">
             <Dropdown>
@@ -1153,7 +1008,7 @@ export default function IndexPage() {
                     <div className="relative group">
                       {/* Gradient border effect */}
                       <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg blur opacity-30 group-hover:opacity-50 transition duration-300"></div>
-                      
+
                       {/* Main key container */}
                       <div className="relative bg-gradient-to-br from-purple-900/20 via-purple-800/10 to-pink-900/20 backdrop-blur-sm rounded-lg py-3 px-4 border border-purple-500/20 hover:border-purple-400/30 transition-all duration-300">
                         <div className="flex items-center justify-between gap-3">
@@ -1163,7 +1018,7 @@ export default function IndexPage() {
                               {apiKey.apiKey}
                             </code>
                           </div>
-                          
+
                           {/* Copy button */}
                           <button
                             onClick={() => {
@@ -1206,7 +1061,7 @@ export default function IndexPage() {
                           </button>
                         </div>
                       </div>
-                      
+
                       {/* Bottom accent */}
                       <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-3/4 h-px bg-gradient-to-r from-transparent via-purple-400/50 to-transparent"></div>
                     </div>
@@ -1218,11 +1073,10 @@ export default function IndexPage() {
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-default-700">Status:</span>
                           <span
-                            className={`px-2 py-0.5 rounded-full text-sm font-medium ${
-                              apiKey.status === "Valid"
+                            className={`px-2 py-0.5 rounded-full text-sm font-medium ${apiKey.status === "Valid"
                                 ? "bg-success/10 text-success border border-success/20 animate-pulse"
                                 : "bg-danger/10 text-danger border border-danger/20"
-                            }`}
+                              }`}
                           >
                             {apiKey.status === "Valid" ? "Still Working! 💸" : "Someone beat you to it!"}
                           </span>
@@ -1232,7 +1086,7 @@ export default function IndexPage() {
                             </span>
                           )}
                         </div>
-                        
+
                         {apiKey.status === "Valid" && (apiKey.lastCheckedUTC || apiKey.lastValidUTC) && (
                           <div>
                             <span className="font-semibold text-default-700">Last Verified:</span>{" "}
@@ -1241,14 +1095,14 @@ export default function IndexPage() {
                             </span>
                           </div>
                         )}
-                        
+
                         <div>
                           <span className="font-semibold text-default-700">First Exposed:</span>{" "}
                           <span className="text-default-600">
-                            {new Date(apiKey.firstFoundUTC).toLocaleString()} 
+                            {new Date(apiKey.firstFoundUTC).toLocaleString()}
                           </span>
                         </div>
-                        
+
                         <div>
                           <span className="font-semibold text-default-700">Surviving in the wild:</span>{" "}
                           <span className="text-default-600 font-medium">
@@ -1270,7 +1124,7 @@ export default function IndexPage() {
                               {apiKey.references[0].repoURL.split("/").slice(-1)[0] || "Mystery Repo"}
                             </Link>
                           </div>
-                          
+
                           <div>
                             <span className="font-semibold text-default-700">The Culprit:</span>
                             <Link
@@ -1281,7 +1135,7 @@ export default function IndexPage() {
                               @{apiKey.references[0].repoOwner} 🎭
                             </Link>
                           </div>
-                          
+
                           <div>
                             <span className="font-semibold text-default-700 block mb-1">Evidence Location:</span>
                             <Link
@@ -1312,7 +1166,7 @@ export default function IndexPage() {
                         </p>
                       </div>
                     )}
-                    
+
                     {/* Show message for keys without references */}
                     {(!apiKey.references || apiKey.references.length === 0) && (
                       <div className="pt-4 border-t border-default-200 dark:border-default-100">
@@ -1366,6 +1220,7 @@ export default function IndexPage() {
             </div>
           )}
 
+          {/* Stats Only - Cleaned up */}
           <section className="mt-20 mb-12 w-full max-w-5xl animate-fade-in">
             <h2 className="sr-only">API Key Statistics</h2>
             <div className="space-y-8">
@@ -1378,11 +1233,12 @@ export default function IndexPage() {
                   <span className="text-lg">😈</span>
                 </div>
               </div>
-              
+
               {keyStats && (
                 <div className="card-glass p-8 hover-lift-lg">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
                     <div className="text-center space-y-2">
+                      {/* Stats content remains same */}
                       <div className="bg-primary/10 rounded-2xl p-4 inline-block hover:scale-110 transition-transform">
                         <Suspense fallback={<div className="animate-pulse">Loading...</div>}>
                           <AnimatedNumber
@@ -1393,7 +1249,7 @@ export default function IndexPage() {
                       </div>
                       <p className="text-default-600 font-medium">Career Enders</p>
                     </div>
-                    
+
                     <div className="text-center space-y-2">
                       <div className="bg-success/10 rounded-2xl p-4 inline-block hover:scale-110 transition-transform">
                         <Suspense fallback={<div className="animate-pulse">Loading...</div>}>
@@ -1405,7 +1261,7 @@ export default function IndexPage() {
                       </div>
                       <p className="text-default-600 font-medium">Still Exploitable</p>
                     </div>
-                    
+
                     <div className="text-center space-y-2">
                       <div className="bg-warning/10 rounded-2xl p-4 inline-block hover:scale-110 transition-transform">
                         <Suspense fallback={<div className="animate-pulse">Loading...</div>}>
@@ -1417,7 +1273,7 @@ export default function IndexPage() {
                       </div>
                       <p className="text-default-600 font-medium">Fresh Victims Today</p>
                     </div>
-                    
+
                     <div className="text-center space-y-2">
                       <div className="bg-danger/10 rounded-2xl p-4 inline-block hover:scale-110 transition-transform">
                         <Suspense fallback={<div className="animate-pulse">Loading...</div>}>
@@ -1430,49 +1286,14 @@ export default function IndexPage() {
                       <p className="text-default-600 font-medium">Latest Oopsie</p>
                     </div>
                   </div>
-                  
+
                   <div className="text-center mt-8">
                     <p className="text-sm text-default-400 italic animate-pulse">
-                      * Valid Keys: Verified by our team of highly caffeinated hamsters 🐹
+                      * Valid Keys: Verified by our team of highly caffeinated bots 🤖
                     </p>
                   </div>
                 </div>
               )}
-
-              {/* Donation Counter Section */}
-              <div className="w-full mt-12 mb-8">
-                <div className="card-glass rounded-2xl p-6 animate-fade-in">
-                  <Suspense fallback={<div className="animate-pulse text-center">Loading donation stats...</div>}>
-                    <DonationCounter />
-                  </Suspense>
-                </div>
-              </div>
-              
-              {/* Enhanced Statistics Section Donate Button */}
-              <div className="text-center">
-                <div className="card-glass rounded-2xl p-8">
-                  <h3 className="text-2xl font-bold mb-4 text-gradient-animate">
-                    Enjoying the Chaos? 🎉
-                  </h3>
-                  <p className="text-default-700 dark:text-default-300 mb-6 max-w-2xl mx-auto">
-                    If watching developers' careers flash before their eyes brings you joy, 
-                    consider buying us a coffee! Or ten. Our servers run on caffeine and 
-                    developer tears. 😭
-                  </p>
-                  <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                    <Suspense fallback={<div className="animate-pulse">Loading PayPal...</div>}>
-                      <PayPalDonateButton 
-                        location="stats_section" 
-                        size="lg" 
-                        className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300 min-w-[200px] btn-glow"
-                      />
-                    </Suspense>
-                    <p className="text-sm text-default-500 italic">
-                      Your donation = More exposed keys = More panic! 
-                    </p>
-                  </div>
-                </div>
-              </div>
             </div>
           </section>
         </section>

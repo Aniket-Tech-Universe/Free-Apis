@@ -13,10 +13,6 @@ export const siteConfig = {
       href: "/leaderboard",
     },
     {
-      label: "Pricing",
-      href: "/pricing",
-    },
-    {
       label: "About",
       href: "/about",
     },

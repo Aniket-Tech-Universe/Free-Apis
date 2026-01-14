@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: unsecuredapikeys-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: CONNECTION_STRING
+        sync: false  # You'll set this in Render dashboard
+      - key: PRODUCTION_DOMAIN
+        value: free-unsecured-apis.vercel.app
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production

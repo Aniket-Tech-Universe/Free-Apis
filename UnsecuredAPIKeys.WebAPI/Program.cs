@@ -99,7 +99,8 @@ namespace UnsecuredAPIKeys.WebAPI
                     {
                         "http://localhost:3000",
                         "http://localhost:3001",
-                        "http://localhost:5173"
+                        "http://localhost:5173",
+                        "https://free-unsecured-apis.vercel.app"  // User's Vercel deployment
                     };
 
                     // Add production domains from environment variables

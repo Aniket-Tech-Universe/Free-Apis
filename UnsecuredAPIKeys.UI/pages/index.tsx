@@ -7,7 +7,15 @@ import Head from "next/head";
 import Cookies from "js-cookie";
 
 import { title, subtitle } from "@/components/primitives";
-// Donation/Discord components removed
+import { GithubIcon } from "@/components/icons";
+import DefaultLayout from "@/layouts/default";
+import { ApiKey, KeyStats, ApiKeyType } from "@/types";
+import { fetchWithRateLimit, cancelRequests } from "@/utils/api";
+import { analytics } from "@/utils/analytics";
+import Disclaimer from "@/components/Disclaimer";
+import TotalDisplayCounter from "@/components/TotalDisplayCounter";
+import ActiveUserCounter from "@/components/ActiveUserCounter";
+import AnimatedNumber from "@/components/AnimatedNumber";
 import { Tooltip } from "@heroui/tooltip";
 
 // Enhanced Loading Messages
@@ -1074,8 +1082,8 @@ export default function IndexPage() {
                           <span className="font-semibold text-default-700">Status:</span>
                           <span
                             className={`px-2 py-0.5 rounded-full text-sm font-medium ${apiKey.status === "Valid"
-                                ? "bg-success/10 text-success border border-success/20 animate-pulse"
-                                : "bg-danger/10 text-danger border border-danger/20"
+                              ? "bg-success/10 text-success border border-success/20 animate-pulse"
+                              : "bg-danger/10 text-danger border border-danger/20"
                               }`}
                           >
                             {apiKey.status === "Valid" ? "Still Working! 💸" : "Someone beat you to it!"}

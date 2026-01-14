@@ -2,7 +2,7 @@ const { withSentryConfig } = require('@sentry/nextjs');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
+  // output: 'export', // Disabled for Vercel native deployment
   trailingSlash: true,
   images: {
     unoptimized: true
@@ -10,17 +10,17 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:7227'
   },
-  
+
   // Enhanced optimization settings
   swcMinify: true, // Use SWC for faster minification
-  
+
   // Compiler optimizations
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production' ? {
       exclude: ['error', 'warn']
     } : false,
   },
-  
+
   // Webpack optimizations
   webpack: (config, { dev, isServer }) => {
     // Production optimizations
@@ -28,7 +28,7 @@ const nextConfig = {
       // Enable tree shaking
       config.optimization.usedExports = true;
       config.optimization.sideEffects = false;
-      
+
       // Split chunks more aggressively
       config.optimization.splitChunks = {
         chunks: 'all',
@@ -59,23 +59,23 @@ const nextConfig = {
           },
         },
       };
-      
+
       // Minimize bundle size
       config.optimization.minimize = true;
-      
+
       // Remove duplicate modules
       config.optimization.providedExports = true;
       config.optimization.concatenateModules = true;
     }
-    
+
     return config;
   },
-  
+
   // Experimental features for better performance
   experimental: {
     optimizePackageImports: [
       '@heroui/button',
-      '@heroui/card', 
+      '@heroui/card',
       '@heroui/code',
       '@heroui/divider',
       '@heroui/dropdown',
@@ -90,7 +90,7 @@ const nextConfig = {
       '@heroicons/react'
     ],
   },
-  
+
   // Disable source maps in production for smaller bundles
   productionBrowserSourceMaps: false,
 };

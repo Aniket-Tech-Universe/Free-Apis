@@ -14,7 +14,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/optimize-build.js && next build && node scripts/compress-assets.js",
+    "build": "node scripts/optimize-build.js && next build",
     "build:simple": "next build",
     "build:optimized": "NODE_ENV=production node scripts/optimize-build.js && next build && node scripts/compress-assets.js",
     "start": "next start",

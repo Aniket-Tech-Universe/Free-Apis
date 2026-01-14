@@ -63,25 +63,56 @@ export default function IndexPage() {
   // Pipeline State
   const [pipelineRunning, setPipelineRunning] = useState(false);
   const [pipelineStatus, setPipelineStatus] = useState("");
+  const [lastRun, setLastRun] = useState<any>(null);
 
   const handleRunPipeline = async () => {
     setPipelineRunning(true);
-    setPipelineStatus("Triggering Pipeline...");
+    setPipelineStatus("Triggering...");
     try {
-      const res = await fetchWithRateLimit("/API/RunPipeline", { method: "POST", requestId: "pipeline" });
+      const res = await fetchWithRateLimit<any>("/API/RunPipeline", { method: "POST", requestId: "pipeline" });
       if (res.data) {
-        setPipelineStatus("Pipeline Started! 🚀");
-        setTimeout(() => setPipelineStatus(""), 3000);
+        setPipelineStatus(res.data.message || "Started!");
+        setTimeout(() => setPipelineStatus(""), 5000);
+        // Refresh status immediately
+        fetchPipelineStatus();
       } else {
-        setPipelineStatus("Failed to start.");
+        setPipelineStatus("Failed (Check Console)");
+        console.error("Pipeline Error:", res.error);
       }
     } catch (e) {
       console.error(e);
-      setPipelineStatus("Error triggering pipeline.");
+      setPipelineStatus("Error triggering.");
     } finally {
       setPipelineRunning(false);
     }
   };
+
+  const fetchPipelineStatus = async () => {
+    try {
+      const res = await fetchWithRateLimit<any>("/API/GetPipelineStatus", { requestId: "pipelineStatus" });
+      if (res.data && res.data.workflow_runs && res.data.workflow_runs.length > 0) {
+        setLastRun(res.data.workflow_runs[0]);
+
+        // If running, keep polling fast
+        const status = res.data.workflow_runs[0].status;
+        if (status === "in_progress" || status === "queued") {
+          setPipelineStatus(`Running... (${status})`);
+        } else if (pipelineRunning === false) {
+          // Only clear if we aren't manually running
+          // setPipelineStatus(""); 
+        }
+      }
+    } catch (e) {
+      console.error("Failed to fetch pipeline status", e);
+    }
+  };
+
+  // Poll Pipeline Status
+  useEffect(() => {
+    fetchPipelineStatus();
+    const interval = setInterval(fetchPipelineStatus, 15000); // 15s poll
+    return () => clearInterval(interval);
+  }, []);
 
   // Enhanced API type colors with glow effects
   const apiTypeColors: Record<string, { bg: string; text: string; border: string; glow: string }> = {
@@ -845,7 +876,28 @@ export default function IndexPage() {
                 {pipelineStatus || "🔥 Run Pipeline Now"}
               </Button>
             </div>
-            <p className="text-default-400 mt-4 italic text-sm">(Directly triggers Scraper & Verifier Bots)</p>
+            <p className="text-default-400 mt-4 italic text-sm">
+              (Directly triggers Scraper & Verifier Bots)
+            </p>
+            {lastRun && (
+              <div className="mt-2 text-xs flex flex-col items-center gap-1 animate-fade-in">
+                <span className="font-semibold text-default-500">Pipeline Status:</span>
+                <div className="flex items-center gap-2 bg-default-100 px-3 py-1 rounded-full border border-default-200">
+                  <span className={`w-2 h-2 rounded-full ${lastRun.status === "completed"
+                      ? (lastRun.conclusion === "success" ? "bg-success" : "bg-danger")
+                      : "bg-warning animate-pulse"
+                    }`}></span>
+                  <span className="font-mono">
+                    {lastRun.status === "completed"
+                      ? lastRun.conclusion.toUpperCase()
+                      : lastRun.status.toUpperCase()}
+                  </span>
+                  <span className="text-default-400">
+                    ({formatTimeAgo(lastRun.updated_at)})
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Rate Limit Banner Removed */}

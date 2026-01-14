@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
 
 using UnsecuredAPIKeys.Data;
 using UnsecuredAPIKeys.Data.Common;
@@ -22,7 +24,9 @@ namespace UnsecuredAPIKeys.WebAPI.Controllers
         IMemoryCache memoryCache,
         IDisplayCountService displayCountService,
         IActiveUserService activeUserService,
-        IHubContext<StatsHub> hubContext)
+        IHubContext<StatsHub> hubContext,
+        IConfiguration configuration,
+        IHttpClientFactory httpClientFactory)
         : ControllerBase
     {
         private const string ApiKeyListCacheKey = "ApiKeys_ValidList";
@@ -44,13 +48,66 @@ namespace UnsecuredAPIKeys.WebAPI.Controllers
         }
 
         [HttpPost("RunPipeline")]
-        public ActionResult RunPipeline()
+        public async Task<ActionResult> RunPipeline()
         {
-             // SIMULATION MODE DISABLED
-             // The real pipeline runs via GitHub Actions on a schedule.
-             return Ok(new { 
-                 message = "Pipeline simulation disabled. Real scraper is running on schedule (every 20 mins)." 
-             });
+             var token = configuration["GITHUB_TOKEN"] ?? Environment.GetEnvironmentVariable("GITHUB_TOKEN");
+             if (string.IsNullOrEmpty(token)) 
+             {
+                 // Fallback: try to read from config
+                 token = configuration.GetValue<string>("GH_PAT_TOKEN");
+             }
+             
+             if (string.IsNullOrEmpty(token))
+                 return BadRequest(new { message = "Server configuration missing GITHUB_TOKEN or GH_PAT_TOKEN. Cannot trigger pipeline." });
+
+             var client = httpClientFactory.CreateClient();
+             client.DefaultRequestHeaders.UserAgent.ParseAdd("UnsecuredAPIKeys-WebAPI");
+             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+             try 
+             {
+                 var response = await client.PostAsJsonAsync(
+                     "https://api.github.com/repos/Aniket-Tech-Universe/Free-Apis/actions/workflows/scraper.yml/dispatches",
+                     new { @ref = "main" });
+
+                 if (response.IsSuccessStatusCode)
+                     return Ok(new { message = "Pipeline triggered successfully on GitHub! 🚀 (Check Actions tab)" });
+                 
+                 var error = await response.Content.ReadAsStringAsync();
+                 return StatusCode((int)response.StatusCode, new { message = $"GitHub API Error: {response.StatusCode} - {error}" });
+             }
+             catch (Exception ex)
+             {
+                 logger.LogError(ex, "Failed to trigger pipeline");
+                 return StatusCode(500, new { message = "Internal Server Error triggering pipeline" });
+             }
+        }
+
+        [HttpGet("GetPipelineStatus")]
+        public async Task<ActionResult> GetPipelineStatus()
+        {
+             var token = configuration["GITHUB_TOKEN"] ?? Environment.GetEnvironmentVariable("GITHUB_TOKEN");
+             
+             var client = httpClientFactory.CreateClient();
+             client.DefaultRequestHeaders.UserAgent.ParseAdd("UnsecuredAPIKeys-WebAPI");
+             if (!string.IsNullOrEmpty(token))
+                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+             try
+             {
+                 var response = await client.GetAsync("https://api.github.com/repos/Aniket-Tech-Universe/Free-Apis/actions/runs?per_page=1");
+                 
+                 if (response.IsSuccessStatusCode)
+                 {
+                     var data = await response.Content.ReadFromJsonAsync<dynamic>();
+                     return Ok(data);
+                 }
+                 return StatusCode((int)response.StatusCode, new { message = "Failed to fetch status" });
+             }
+             catch
+             {
+                 return StatusCode(500, new { message = "Error fetching status" });
+             }
         }
 
 

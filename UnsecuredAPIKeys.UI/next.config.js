@@ -8,7 +8,7 @@ const nextConfig = {
     unoptimized: true
   },
   env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:7227'
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'https://api.unsecuredapikeys.com'
   },
 
   // Enhanced optimization settings

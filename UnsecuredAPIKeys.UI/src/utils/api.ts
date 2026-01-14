@@ -3,8 +3,12 @@ import * as Sentry from "@sentry/react";
 import { ApiResponse, RateLimitResponse } from "@/types";
 
 // API base URL from environment variables
+// In production (Vercel), use the original project's API; locally use localhost
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:7227";
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window !== 'undefined' && window.location.hostname === 'localhost'
+    ? "http://localhost:7227"
+    : "https://api.unsecuredapikeys.com");
 
 // Debug logging in development
 if (process.env.NODE_ENV === 'development') {
@@ -22,7 +26,7 @@ export async function fetchWithRateLimit<T>(
   options?: RequestInit & { requestId?: string },
 ): Promise<ApiResponse<T>> {
   const requestId = options?.requestId || endpoint;
-  
+
   // Cancel any existing request with the same ID
   const existingController = requestControllers.get(requestId);
   if (existingController) {
@@ -35,7 +39,7 @@ export async function fetchWithRateLimit<T>(
 
   // Prepare headers with Discord ID if available
   const headers = new Headers(options?.headers);
-  
+
   // Automatically include Discord ID for enhanced rate limits
   if (typeof window !== 'undefined') {
     const discordId = localStorage.getItem('discordId');
@@ -79,20 +83,20 @@ export async function fetchWithRateLimit<T>(
       const userFriendlyError = response.status >= 500
         ? "Server error. Please try again later."
         : response.status === 404
-        ? "Resource not found."
-        : "Request failed. Please try again.";
-        
+          ? "Resource not found."
+          : "Request failed. Please try again.";
+
       return {
         error: userFriendlyError,
         rateLimit: rateLimitHeader.limit
           ? {
-              limit: rateLimitHeader.limit,
-              requestsRemaining: rateLimitHeader.requestsRemaining,
-              requestsCount:
-                rateLimitHeader.limit - rateLimitHeader.requestsRemaining,
-              resetAt: rateLimitHeader.resetAt,
-              timeWindow: "01:00:00", // Default 1 hour
-            }
+            limit: rateLimitHeader.limit,
+            requestsRemaining: rateLimitHeader.requestsRemaining,
+            requestsCount:
+              rateLimitHeader.limit - rateLimitHeader.requestsRemaining,
+            resetAt: rateLimitHeader.resetAt,
+            timeWindow: "01:00:00", // Default 1 hour
+          }
           : undefined,
       };
     }
@@ -104,13 +108,13 @@ export async function fetchWithRateLimit<T>(
       data: data as T,
       rateLimit: rateLimitHeader.limit
         ? {
-            limit: rateLimitHeader.limit,
-            requestsRemaining: rateLimitHeader.requestsRemaining,
-            requestsCount:
-              rateLimitHeader.limit - rateLimitHeader.requestsRemaining,
-            resetAt: rateLimitHeader.resetAt,
-            timeWindow: "01:00:00", // Default 1 hour
-          }
+          limit: rateLimitHeader.limit,
+          requestsRemaining: rateLimitHeader.requestsRemaining,
+          requestsCount:
+            rateLimitHeader.limit - rateLimitHeader.requestsRemaining,
+          resetAt: rateLimitHeader.resetAt,
+          timeWindow: "01:00:00", // Default 1 hour
+        }
         : undefined,
     };
   } catch (err) {
@@ -184,10 +188,10 @@ export async function fetchPaginated<T>(
     page: page.toString(),
     pageSize: pageSize.toString(),
   });
-  
+
   const fullEndpoint = `${endpoint}?${params.toString()}`;
   const response = await fetchWithRateLimit<any>(fullEndpoint, options);
-  
+
   if (response.data) {
     return {
       ...response,
@@ -198,6 +202,6 @@ export async function fetchPaginated<T>(
       },
     };
   }
-  
+
   return response as any;
 }

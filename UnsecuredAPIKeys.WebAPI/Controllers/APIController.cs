@@ -194,8 +194,10 @@ namespace UnsecuredAPIKeys.WebAPI.Controllers
             // Easter Egg Endpoint: Returns recent valid keys
             // Status desc: ValidNoCredits(7) > Valid(1) > Invalid(0) > Unverified(-99)
             // We want Valid ones first.
+            // Exclude DEMO keys (fake seeded data)
             var keys = await dbContext.APIKeys
-                .Where(k => k.Status == ApiStatusEnum.Valid || k.Status == ApiStatusEnum.ValidNoCredits || k.Status == ApiStatusEnum.Unverified)
+                .Where(k => (k.Status == ApiStatusEnum.Valid || k.Status == ApiStatusEnum.ValidNoCredits || k.Status == ApiStatusEnum.Unverified) 
+                            && !k.ApiKey.StartsWith("DEMO_"))
                 .OrderByDescending(k => k.Status)
                 .ThenByDescending(k => k.LastFoundUTC)
                 .Take(50)

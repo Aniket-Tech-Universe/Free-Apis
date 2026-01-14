@@ -105,6 +105,7 @@ namespace UnsecuredAPIKeys.WebAPI.Controllers
                         SearchProvider = SearchProviderEnum.GitHub,
                         FirstFoundUTC = DateTime.UtcNow.AddDays(-30),
                         LastFoundUTC = DateTime.UtcNow,
+                        LastCheckedUTC = DateTime.UtcNow, // Required for GetRandomKey's 24-hour filter
                         TimesDisplayed = new Random().Next(10, 100),
                         ErrorCount = 0
                     };
@@ -123,6 +124,23 @@ namespace UnsecuredAPIKeys.WebAPI.Controllers
                 logger.LogError(ex, "Failed to seed test data");
                 return StatusCode(500, $"Failed to seed data: {ex.Message}");
             }
+        }
+
+        [HttpPost("FixExistingKeys")]
+        public async Task<ActionResult> FixExistingKeys()
+        {
+            // Fix keys that were seeded without LastCheckedUTC
+            var keysToFix = await dbContext.APIKeys
+                .Where(k => k.LastCheckedUTC == null)
+                .ToListAsync();
+            
+            foreach (var key in keysToFix)
+            {
+                key.LastCheckedUTC = DateTime.UtcNow;
+            }
+            
+            await dbContext.SaveChangesAsync();
+            return Ok(new { message = $"Fixed {keysToFix.Count} keys", totalKeys = await dbContext.APIKeys.CountAsync() });
         }
 
         [HttpGet("GetDisplayCount")]

@@ -35,7 +35,7 @@ namespace UnsecuredAPIKeys.WebAPI.Controllers
         private static readonly TimeSpan InvalidationStatsCacheExpiration = TimeSpan.FromMinutes(5);
 
         [HttpGet("GetRandomKey")]
-        [AllowedReferrers]
+        // [AllowedReferrers] - Removed for Lite version (unrestricted access)
         // [RateLimit] - Removed for Lite version
         public async Task<ActionResult<APIKey?>> GetRandomKey([FromQuery] int? type = null)
         {

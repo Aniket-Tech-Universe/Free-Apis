@@ -240,6 +240,21 @@ namespace UnsecuredAPIKeys.Bots.Scraper
             var gitlabToken = allTokens.FirstOrDefault(t => t.SearchProvider == SearchProviderEnum.GitLab);
             var sourcegraphToken = allTokens.FirstOrDefault(t => t.SearchProvider == SearchProviderEnum.SourceGraph);
 
+            // Fallback to environment variables if DB tokens are missing
+            if (githubToken == null)
+            {
+                var envToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
+                if (!string.IsNullOrEmpty(envToken))
+                {
+                    githubToken = new SearchProviderToken 
+                    { 
+                        SearchProvider = SearchProviderEnum.GitHub, 
+                        Token = envToken, 
+                        IsEnabled = true 
+                    };
+                }
+            }
+
             // Log available providers
             var availableProviders = new List<string>();
             if (githubToken != null) availableProviders.Add("GitHub");

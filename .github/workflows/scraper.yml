@@ -1,0 +1,32 @@
+name: API Key Scraper Bot
+
+on:
+  schedule:
+    # Run every 4 hours
+    - cron: '0 */4 * * *'
+  # Allow manual trigger from GitHub Actions tab
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '9.0.x'
+        
+    - name: Restore dependencies
+      run: dotnet restore
+        
+    - name: Run Scraper Bot
+      env:
+        CONNECTION_STRING: ${{ secrets.CONNECTION_STRING }}
+        GITHUB_TOKEN: ${{ secrets.GH_PAT_TOKEN }}
+        # Setting this environment variable triggers the scraper logic that checks env vars
+      run: |
+        cd UnsecuredAPIKeys.Bots.Scraper
+        dotnet run

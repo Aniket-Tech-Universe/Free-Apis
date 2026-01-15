@@ -130,15 +130,22 @@ namespace UnsecuredAPIKeys.Bots.Scraper
                 ("AIzaSy", DateTime.UtcNow.AddYears(-5)),
                 ("GOOGLE_API_KEY", DateTime.UtcNow.AddYears(-5).AddDays(1)),
                 ("gemini api key", DateTime.UtcNow.AddYears(-5).AddDays(2)),
+                // Targeting config files (High Yield)
+                ("filename:.env AIzaSy", DateTime.UtcNow.AddYears(-5).AddDays(3)),
+                ("filename:config.js AIzaSy", DateTime.UtcNow.AddYears(-5).AddDays(4)),
+                ("filename:secrets.yaml AIzaSy", DateTime.UtcNow.AddYears(-5).AddDays(5)),
+                ("path:.github/workflows AIzaSy", DateTime.UtcNow.AddYears(-5).AddDays(6)),
 
                 // Priority 2: OpenAI
                 ("sk-proj-", DateTime.UtcNow.AddYears(-4)),
                 ("OPENAI_API_KEY", DateTime.UtcNow.AddYears(-4).AddDays(1)),
                 ("openai_key", DateTime.UtcNow.AddYears(-4).AddDays(2)),
+                ("filename:.env sk-proj-", DateTime.UtcNow.AddYears(-4).AddDays(3)),
 
                 // Priority 3: Anthropic
                 ("sk-ant-api", DateTime.UtcNow.AddYears(-3)),
                 ("ANTHROPIC_API_KEY", DateTime.UtcNow.AddYears(-3).AddDays(1)),
+                ("filename:.env sk-ant-api", DateTime.UtcNow.AddYears(-3).AddDays(2)),
 
                 // Priority 4: Other AI providers
                 ("MISTRAL_API_KEY", DateTime.UtcNow.AddYears(-2)),

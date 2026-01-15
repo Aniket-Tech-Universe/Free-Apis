@@ -238,46 +238,60 @@ namespace UnsecuredAPIKeys.Bots.Scraper
                 .Where(t => t.IsEnabled && !string.IsNullOrEmpty(t.Token))
                 .ToListAsync(_cancellationTokenSource.Token);
 
-            var githubToken = allTokens.FirstOrDefault(t => t.SearchProvider == SearchProviderEnum.GitHub);
-            var gitlabToken = allTokens.FirstOrDefault(t => t.SearchProvider == SearchProviderEnum.GitLab);
-            var sourcegraphToken = allTokens.FirstOrDefault(t => t.SearchProvider == SearchProviderEnum.SourceGraph);
+            var githubTokens = allTokens.Where(t => t.SearchProvider == SearchProviderEnum.GitHub).ToList();
 
             // Fallback to environment variables if DB tokens are missing
-            if (githubToken == null)
+            if (!githubTokens.Any())
             {
+                // Single token
                 var envToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
                 if (!string.IsNullOrEmpty(envToken))
                 {
-                    githubToken = new SearchProviderToken 
+                    githubTokens.Add(new SearchProviderToken 
                     { 
                         SearchProvider = SearchProviderEnum.GitHub, 
                         Token = envToken, 
                         IsEnabled = true 
-                    };
+                    });
+                }
+
+                // Multiple tokens (Comma separated)
+                var multiTokens = Environment.GetEnvironmentVariable("GITHUB_TOKENS");
+                if (!string.IsNullOrEmpty(multiTokens))
+                {
+                    var tokens = multiTokens.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    foreach (var tokenStr in tokens)
+                    {
+                        // Avoid duplicates
+                        if (!githubTokens.Any(t => t.Token == tokenStr))
+                        {
+                            githubTokens.Add(new SearchProviderToken 
+                            { 
+                                SearchProvider = SearchProviderEnum.GitHub, 
+                                Token = tokenStr, 
+                                IsEnabled = true 
+                            });
+                        }
+                    }
                 }
             }
 
-            // Log available providers
-            var availableProviders = new List<string>();
-            if (githubToken != null) availableProviders.Add("GitHub");
-            if (gitlabToken != null) availableProviders.Add("GitLab");
-            if (sourcegraphToken != null) availableProviders.Add("SourceGraph");
-
-            if (!availableProviders.Any())
+            if (!githubTokens.Any())
             {
-                _logger?.LogWarning("No search provider tokens available. Set GITHUB_TOKEN, GITLAB_TOKEN, or SOURCEGRAPH_TOKEN environment variables.");
-                Console.WriteLine("Warning: No search provider tokens available.");
+                _logger?.LogWarning("No GitHub search provider tokens available.");
+                Console.WriteLine("Warning: No GitHub search provider tokens available.");
                 return;
             }
 
-            _logger?.LogInformation("Available search providers: {Providers}", string.Join(", ", availableProviders));
-            Console.WriteLine($"✓ Available search providers: {string.Join(", ", availableProviders)}");
+            _logger?.LogInformation("Available GitHub Tokens: {Count}", githubTokens.Count);
+            Console.WriteLine($"✓ Loaded {githubTokens.Count} GitHub Tokens for parallel processing");
 
             // Get enabled search queries
+            // Fetch more queries since we have more power
             var queries = await dbContext.SearchQueries
                 .Where(q => q.IsEnabled)
                 .OrderBy(q => q.LastSearchUTC)
-                .Take(20) // Process up to 20 queries per cycle
+                .Take(50) // Process up to 50 queries per cycle (increased from 20)
                 .ToListAsync(_cancellationTokenSource.Token);
 
             if (!queries.Any())
@@ -288,53 +302,64 @@ namespace UnsecuredAPIKeys.Bots.Scraper
             }
 
             _logger?.LogInformation("Processing {Count} search queries", queries.Count);
-            Console.WriteLine($"Processing {queries.Count} search queries");
+            Console.WriteLine($"Processing {queries.Count} search queries (Concurrency: 5)");
 
             int totalKeysFound = 0;
             int newKeysAdded = 0;
             int duplicatesSkipped = 0;
+            int tokenIndex = -1;
 
-            foreach (var query in queries)
+            // Parallel execution
+            var parallelOptions = new ParallelOptions
             {
-                if (_cancellationTokenSource.Token.IsCancellationRequested)
-                    break;
+                MaxDegreeOfParallelism = 5, // Run 5 concurrent searches
+                CancellationToken = _cancellationTokenSource.Token
+            };
 
-                _logger?.LogInformation("Searching for: '{Query}'", query.Query);
-                Console.WriteLine($"\nSearching for: '{query.Query}'");
+            await Parallel.ForEachAsync(queries, parallelOptions, async (query, ct) =>
+            {
+                // Create a dedicated scope for this thread
+                using var threadScope = _serviceProvider.CreateScope();
+                var threadDbContext = threadScope.ServiceProvider.GetRequiredService<DBContext>();
+                
+                // Re-attach query to this context
+                var q = await threadDbContext.SearchQueries.FirstAsync(x => x.Id == query.Id, ct);
+
+                // Round-robin token selection
+                var currentTokenIndex = Interlocked.Increment(ref tokenIndex);
+                var token = githubTokens[currentTokenIndex % githubTokens.Count];
+
+                // _logger?.LogInformation("Thread {Id} using Token {TokenIdx} for '{Query}'", Environment.CurrentManagedThreadId, currentTokenIndex % githubTokens.Count, q.Query);
 
                 try
                 {
                     // Search GitHub
-                    var repoReferences = await SearchGitHubAsync(query, githubToken, dbContext);
+                    var repoReferences = await SearchGitHubAsync(q, token, threadDbContext);
 
                     foreach (var repoRef in repoReferences)
                     {
-                        if (_cancellationTokenSource.Token.IsCancellationRequested)
-                            break;
+                        if (ct.IsCancellationRequested) break;
 
-                        // Fetch file content and extract API keys
-                        var extractedKeys = await ProcessRepoReferenceAsync(repoRef, githubToken, dbContext);
+                        // Process Repo (Extract keys)
+                        var extractedKeys = await ProcessRepoReferenceAsync(repoRef, token, threadDbContext);
                         
                         foreach (var extractedKey in extractedKeys)
                         {
                             var keyValue = extractedKey.key;
                             var provider = extractedKey.provider;
                             
-                            totalKeysFound++;
+                            Interlocked.Increment(ref totalKeysFound);
 
-                            // Check if key already exists
-                            var existingKey = await dbContext.APIKeys
-                                .FirstOrDefaultAsync(k => k.ApiKey == keyValue, _cancellationTokenSource.Token);
+                            var existingKey = await threadDbContext.APIKeys
+                                .FirstOrDefaultAsync(k => k.ApiKey == keyValue, ct);
 
                             if (existingKey != null)
                             {
-                                // Update last found time
                                 existingKey.LastFoundUTC = DateTime.UtcNow;
-                                duplicatesSkipped++;
+                                Interlocked.Increment(ref duplicatesSkipped);
                             }
                             else
                             {
-                                // Add new key
                                 var newKey = new APIKey
                                 {
                                     ApiKey = keyValue,
@@ -345,56 +370,33 @@ namespace UnsecuredAPIKeys.Bots.Scraper
                                     LastFoundUTC = DateTime.UtcNow
                                 };
 
-                                dbContext.APIKeys.Add(newKey);
-                                await dbContext.SaveChangesAsync(_cancellationTokenSource.Token);
+                                threadDbContext.APIKeys.Add(newKey);
+                                await threadDbContext.SaveChangesAsync(ct);
 
-                                // Link repo reference to key
                                 repoRef.APIKeyId = newKey.Id;
-                                dbContext.RepoReferences.Add(repoRef);
+                                threadDbContext.RepoReferences.Add(repoRef);
 
-                                newKeysAdded++;
-                                _logger?.LogInformation("Found new {Provider} key: {KeyPreview}...",
-                                    provider.ProviderName,
-                                    keyValue.Length > 10 ? keyValue[..10] : keyValue);
+                                Interlocked.Increment(ref newKeysAdded);
                                 Console.WriteLine($"  + New {provider.ProviderName} key found!");
                             }
-
-                            await dbContext.SaveChangesAsync(_cancellationTokenSource.Token);
+                            await threadDbContext.SaveChangesAsync(ct);
                         }
                     }
 
-                    // Update query last search time
-                    query.LastSearchUTC = DateTime.UtcNow;
-                    await dbContext.SaveChangesAsync(_cancellationTokenSource.Token);
+                    // Update LastSearchUTC
+                    q.LastSearchUTC = DateTime.UtcNow;
+                    await threadDbContext.SaveChangesAsync(ct);
                 }
                 catch (RateLimitExceededException ex)
                 {
-                    _logger?.LogWarning("GitHub API rate limit exceeded. Waiting until {ResetTime}.", ex.Reset.ToString("o"));
-                    Console.WriteLine($"Rate limit hit! Reset at: {ex.Reset:HH:mm:ss}");
-
-                    var delay = ex.Reset - DateTimeOffset.UtcNow;
-                    if (delay > TimeSpan.Zero && delay < TimeSpan.FromMinutes(5))
-                    {
-                        await Task.Delay(delay, _cancellationTokenSource.Token);
-                    }
-                    else
-                    {
-                        // Long wait - exit this cycle
-                        break;
-                    }
+                    _logger?.LogWarning("Rate Limit Hit on Token {TokenIdx}. Reset: {Reset}", currentTokenIndex % githubTokens.Count, ex.Reset);
+                    // Just skip this query for now, other threads continue
                 }
                 catch (Exception ex)
                 {
-                    _logger?.LogError(ex, "Error processing query '{Query}'", query.Query);
-                    Console.WriteLine($"Error processing query: {ex.Message}");
+                    _logger?.LogError(ex, "Error processing query '{Query}'", q.Query);
                 }
-
-                // Delay between queries to be polite to the API
-                await Task.Delay(DelayBetweenQueriesMs, _cancellationTokenSource.Token);
-
-                // Export keys incrementally after each query
-                await ExportKeysToFilesAsync(dbContext);
-            }
+            });
 
             stopwatch.Stop();
 
@@ -407,7 +409,7 @@ namespace UnsecuredAPIKeys.Bots.Scraper
             Console.WriteLine($"Duplicates skipped: {duplicatesSkipped}");
             Console.WriteLine($"========================================");
 
-            // Export keys to structured files
+            // Export keys (using original db context for main thread)
             await ExportKeysToFilesAsync(dbContext);
         }
 

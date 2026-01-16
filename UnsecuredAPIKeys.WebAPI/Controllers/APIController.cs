@@ -47,41 +47,7 @@ namespace UnsecuredAPIKeys.WebAPI.Controllers
             return Ok(key);
         }
 
-        [HttpPost("RunPipeline")]
-        public async Task<ActionResult> RunPipeline()
-        {
-             var token = configuration["GITHUB_TOKEN"] ?? Environment.GetEnvironmentVariable("GITHUB_TOKEN");
-             if (string.IsNullOrEmpty(token)) 
-             {
-                 // Fallback: try to read from config
-                 token = configuration.GetValue<string>("GH_PAT_TOKEN");
-             }
-             
-             if (string.IsNullOrEmpty(token))
-                 return BadRequest(new { message = "Server configuration missing GITHUB_TOKEN or GH_PAT_TOKEN. Cannot trigger pipeline." });
 
-             var client = httpClientFactory.CreateClient();
-             client.DefaultRequestHeaders.UserAgent.ParseAdd("UnsecuredAPIKeys-WebAPI");
-             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-             try 
-             {
-                 var response = await client.PostAsJsonAsync(
-                     "https://api.github.com/repos/Aniket-Tech-Universe/Free-Apis/actions/workflows/scraper.yml/dispatches",
-                     new { @ref = "main" });
-
-                 if (response.IsSuccessStatusCode)
-                     return Ok(new { message = "Pipeline triggered successfully on GitHub! 🚀 (Check Actions tab)" });
-                 
-                 var error = await response.Content.ReadAsStringAsync();
-                 return StatusCode((int)response.StatusCode, new { message = $"GitHub API Error: {response.StatusCode} - {error}" });
-             }
-             catch (Exception ex)
-             {
-                 logger.LogError(ex, "Failed to trigger pipeline");
-                 return StatusCode(500, new { message = "Internal Server Error triggering pipeline" });
-             }
-        }
 
         [HttpGet("GetPipelineStatus")]
         public async Task<ActionResult> GetPipelineStatus()

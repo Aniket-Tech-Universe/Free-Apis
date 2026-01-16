@@ -26,10 +26,7 @@ export const siteConfig = {
       label: "🏆 Leaderboard",
       href: "/leaderboard",
     },
-    {
-      label: "Pricing",
-      href: "/pricing",
-    },
+
     {
       label: "About",
       href: "/about",

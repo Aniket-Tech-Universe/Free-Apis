@@ -405,8 +405,7 @@ export default function IndexPage() {
   Your Friendly Neighborhood Secret Exposer 🦸‍♂️
   
   P.S. If you need the exact location, I charge $999.99 for consulting (or you could just search for "${apiKey.apiKey.slice(0, 10)}..." in your repo)
-  P.P.S. Don't forget to thank me in your commit message when you fix this! 
-  P.P.P.S. We accept donations at unsecuredapikeys.com (server hamsters need food) 🐹`,
+  P.P.S. Don't forget to thank me in your commit message when you fix this!`,
     )}`;
 
     window.open(issueUrl, "_blank");
@@ -884,8 +883,8 @@ export default function IndexPage() {
                 <span className="font-semibold text-default-500">Pipeline Status:</span>
                 <div className="flex items-center gap-2 bg-default-100 px-3 py-1 rounded-full border border-default-200">
                   <span className={`w-2 h-2 rounded-full ${lastRun.status === "completed"
-                      ? (lastRun.conclusion === "success" ? "bg-success" : "bg-danger")
-                      : "bg-warning animate-pulse"
+                    ? (lastRun.conclusion === "success" ? "bg-success" : "bg-danger")
+                    : "bg-warning animate-pulse"
                     }`}></span>
                   <span className="font-mono">
                     {lastRun.status === "completed"

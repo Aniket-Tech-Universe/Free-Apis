@@ -792,7 +792,7 @@ namespace UnsecuredAPIKeys.Bots.Verifier
                         if (initialResult.HttpStatusCode.HasValue)
                             initialErrorDetail = $"status {initialResult.HttpStatusCode.Value} ({initialResult.Status}) - {initialResult.Detail}";
 
-                        _logger?.LogInformation("Key {ApiEntryId} ({KeySnippetForLog}) failed with {TargetProviderProviderName} ({InitialErrorDetail}). Trying all providers...",
+                        _logger?.LogInformation("Key {ApiEntryId} ({KeySnippetForLog}) failed with {TargetProviderProviderName} ({InitialErrorDetail}). Checking alternate matching providers...",
                             apiEntry.Id, keySnippetForLog, targetProvider.ProviderName, initialErrorDetail);
 
                         var fallbackOutcome = await ValidateWithAllProvidersAsync(apiEntry.ApiKey, webProxy, targetProvider);
@@ -1758,36 +1758,67 @@ namespace UnsecuredAPIKeys.Bots.Verifier
                 return (ValidationResult.HasProviderSpecificError("No providers match this key pattern"), ApiTypeEnum.Unknown);
             }
 
-            _logger?.LogDebug("Found {Count} providers with matching patterns for key validation", matchingProviders.Count);
+            _logger?.LogDebug("Found {Count} matching providers. validating in parallel...", matchingProviders.Count);
 
-            foreach (var provider in matchingProviders)
+    var tasks = new Dictionary<Task<(ValidationResult result, ApiTypeEnum type)>, string>();
+    using var cts = new CancellationTokenSource();
+    // Link with Global Token if needed, but local cancellation is for speed.
+
+    foreach (var provider in matchingProviders)
+    {
+        var task = Task.Run(async () => 
+        {
+             // Skip if circuit breaker is open
+            var breaker = _circuitBreakers!.GetBreaker(provider.ProviderName);
+            if (breaker.IsOpen)
             {
-                try
-                {
-                    // Skip if circuit breaker is open
-                    var breaker = _circuitBreakers!.GetBreaker(provider.ProviderName);
-                    if (breaker.IsOpen)
-                    {
-                        _logger?.LogDebug("Skipping {Provider} - circuit breaker is open", provider.ProviderName);
-                        continue;
-                    }
-
-                    _logger?.LogDebug("Attempting validation with {Provider}", provider.ProviderName);
-                    var result = await ValidateWithProviderAsync(apiKey, provider, webProxy);
-
-                    if (result.Status == ValidationAttemptStatus.Valid)
-                    {
-                        return (result, provider.ApiType);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    await LogExceptionAsync(ex, provider.ProviderName, apiKey, "Provider ValidateKeyAsync Call Error in AllProviders");
-                }
+                 // We can't log easily here without scope issues or noise, just return error
+                 return (ValidationResult.HasProviderSpecificError("Circuit breaker open"), ApiTypeEnum.Unknown);
             }
 
-            return (ValidationResult.HasProviderSpecificError("Key was not validated by any pattern-matching provider"), ApiTypeEnum.Unknown);
+            // Check cancellation
+            if (cts.Token.IsCancellationRequested) 
+                return (ValidationResult.HasProviderSpecificError("Cancelled"), ApiTypeEnum.Unknown);
+
+            try 
+            {
+                var res = await ValidateWithProviderAsync(apiKey, provider, webProxy);
+                return (res, provider.ApiType);
+            }
+            catch (Exception ex)
+            {
+                // Log and return error
+                await LogExceptionAsync(ex, provider.ProviderName, apiKey, "Provider ValidateKeyAsync Call Error (Parallel)");
+                return (ValidationResult.HasProviderSpecificError(ex.Message), ApiTypeEnum.Unknown);
+            }
+        }, cts.Token);
+        
+        tasks.Add(task, provider.ProviderName);
+    }
+
+    while (tasks.Count > 0)
+    {
+        var completedTask = await Task.WhenAny(tasks.Keys);
+        tasks.Remove(completedTask);
+
+        try
+        {
+            var (result, type) = await completedTask;
+            if (result.Status == ValidationAttemptStatus.Valid)
+            {
+                cts.Cancel(); // Cancel others (best effort)
+                return (result, type);
+            }
         }
+        catch (Exception ex)
+        {
+            // Task failed?
+             _logger?.LogWarning(ex, "One validation task failed unexpectedly");
+        }
+    }
+
+    return (ValidationResult.HasProviderSpecificError("Key was not validated by any pattern-matching provider"), ApiTypeEnum.Unknown);
+}
 
         private static void LogProgress(int processed, int total)
         {

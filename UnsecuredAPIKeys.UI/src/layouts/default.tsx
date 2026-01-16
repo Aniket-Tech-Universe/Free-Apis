@@ -4,7 +4,7 @@ import { Button } from "@heroui/button";
 
 import { Navbar } from "@/components/navbar";
 import Disclaimer from "@/components/Disclaimer";
-import FloatingDonateButton from "@/components/FloatingDonateButton";
+
 
 export default function DefaultLayout({
   children,
@@ -76,9 +76,8 @@ export default function DefaultLayout({
           <Disclaimer isOpen={showDrawer} onClose={handleCloseDrawer} />
         )}
       </footer>
-      
-      {/* Floating Donate Button */}
-      <FloatingDonateButton />
+
+
     </div>
   );
 }

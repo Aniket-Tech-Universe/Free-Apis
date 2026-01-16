@@ -75,6 +75,7 @@
         GitHub = 300,             // GitHub Personal Access Tokens
         GitLab = 310,
         BitBucket = 320,
+        SourceGraph = 330,
 
         // Common Services (400+)
         Stripe = 400,             // Payment processing

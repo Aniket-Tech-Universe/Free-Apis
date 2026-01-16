@@ -10,6 +10,9 @@ using UnsecuredAPIKeys.Data.Common;
 using UnsecuredAPIKeys.Data.Models;
 using UnsecuredAPIKeys.Providers;
 using UnsecuredAPIKeys.Providers._Interfaces;
+using System.Net.Http;
+using UnsecuredAPIKeys.Providers.Search_Providers;
+using System.Collections.Concurrent;
 
 namespace UnsecuredAPIKeys.Bots.Scraper
 {
@@ -238,60 +241,50 @@ namespace UnsecuredAPIKeys.Bots.Scraper
                 .Where(t => t.IsEnabled && !string.IsNullOrEmpty(t.Token))
                 .ToListAsync(_cancellationTokenSource.Token);
 
-            var githubTokens = allTokens.Where(t => t.SearchProvider == SearchProviderEnum.GitHub).ToList();
+            var tokensByProvider = allTokens
+                .GroupBy(t => t.SearchProvider)
+                .ToDictionary(g => g.Key, g => g.ToList());
 
-            // Fallback to environment variables if DB tokens are missing
-            if (!githubTokens.Any())
+            // Fallback: Add GitHub Tokens from Env if DB has none
+            if (!tokensByProvider.ContainsKey(SearchProviderEnum.GitHub) || !tokensByProvider[SearchProviderEnum.GitHub].Any())
             {
+                var githubTokens = new List<SearchProviderToken>();
                 // Single token
                 var envToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
                 if (!string.IsNullOrEmpty(envToken))
                 {
-                    githubTokens.Add(new SearchProviderToken 
-                    { 
-                        SearchProvider = SearchProviderEnum.GitHub, 
-                        Token = envToken, 
-                        IsEnabled = true 
-                    });
+                    githubTokens.Add(new SearchProviderToken { SearchProvider = SearchProviderEnum.GitHub, Token = envToken, IsEnabled = true });
                 }
-
-                // Multiple tokens (Comma separated)
+                // Multiple tokens
                 var multiTokens = Environment.GetEnvironmentVariable("GITHUB_TOKENS");
                 if (!string.IsNullOrEmpty(multiTokens))
                 {
                     var tokens = multiTokens.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
                     foreach (var tokenStr in tokens)
                     {
-                        // Avoid duplicates
-                        if (!githubTokens.Any(t => t.Token == tokenStr))
-                        {
-                            githubTokens.Add(new SearchProviderToken 
-                            { 
-                                SearchProvider = SearchProviderEnum.GitHub, 
-                                Token = tokenStr, 
-                                IsEnabled = true 
-                            });
-                        }
+                         if (!githubTokens.Any(t => t.Token == tokenStr))
+                             githubTokens.Add(new SearchProviderToken { SearchProvider = SearchProviderEnum.GitHub, Token = tokenStr, IsEnabled = true });
                     }
+                }
+                if (githubTokens.Any())
+                {
+                    tokensByProvider[SearchProviderEnum.GitHub] = githubTokens;
                 }
             }
 
-            if (!githubTokens.Any())
+            // Report Token Counts
+            foreach (var kvp in tokensByProvider)
             {
-                _logger?.LogWarning("No GitHub search provider tokens available.");
-                Console.WriteLine("Warning: No GitHub search provider tokens available.");
-                return;
+                _logger?.LogInformation("Loaded {Count} tokens for {Provider}", kvp.Value.Count, kvp.Key);
+                Console.WriteLine($"✓ Loaded {kvp.Value.Count} {kvp.Key} Tokens");
             }
-
-            _logger?.LogInformation("Available GitHub Tokens: {Count}", githubTokens.Count);
-            Console.WriteLine($"✓ Loaded {githubTokens.Count} GitHub Tokens for parallel processing");
 
             // Get enabled search queries
             // Fetch more queries since we have more power
             var queries = await dbContext.SearchQueries
                 .Where(q => q.IsEnabled)
                 .OrderBy(q => q.LastSearchUTC)
-                .Take(50) // Process up to 50 queries per cycle (increased from 20)
+                .Take(50) 
                 .ToListAsync(_cancellationTokenSource.Token);
 
             if (!queries.Any())
@@ -307,12 +300,14 @@ namespace UnsecuredAPIKeys.Bots.Scraper
             int totalKeysFound = 0;
             int newKeysAdded = 0;
             int duplicatesSkipped = 0;
-            int tokenIndex = -1;
+            
+            // Token Rotation Indexes per Provider
+            var tokenIndexes = new ConcurrentDictionary<SearchProviderEnum, int>();
 
             // Parallel execution
             var parallelOptions = new ParallelOptions
             {
-                MaxDegreeOfParallelism = 5, // Run 5 concurrent searches
+                MaxDegreeOfParallelism = 5,
                 CancellationToken = _cancellationTokenSource.Token
             };
 
@@ -321,81 +316,105 @@ namespace UnsecuredAPIKeys.Bots.Scraper
                 // Create a dedicated scope for this thread
                 using var threadScope = _serviceProvider.CreateScope();
                 var threadDbContext = threadScope.ServiceProvider.GetRequiredService<DBContext>();
+                var threadHttpClientFactory = threadScope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
                 
                 // Re-attach query to this context
                 var q = await threadDbContext.SearchQueries.FirstAsync(x => x.Id == query.Id, ct);
 
-                // Round-robin token selection
-                var currentTokenIndex = Interlocked.Increment(ref tokenIndex);
-                var token = githubTokens[currentTokenIndex % githubTokens.Count];
-
-                // _logger?.LogInformation("Thread {Id} using Token {TokenIdx} for '{Query}'", Environment.CurrentManagedThreadId, currentTokenIndex % githubTokens.Count, q.Query);
-
-                try
+                // Resolve Providers
+                var providers = new List<ISearchProvider>();
+                try 
                 {
-                    // Search GitHub
-                    var repoReferences = await SearchGitHubAsync(q, token, threadDbContext);
-
-                    foreach (var repoRef in repoReferences)
-                    {
-                        if (ct.IsCancellationRequested) break;
-
-                        // Process Repo (Extract keys)
-                        var extractedKeys = await ProcessRepoReferenceAsync(repoRef, token, threadDbContext);
-                        
-                        foreach (var extractedKey in extractedKeys)
-                        {
-                            var keyValue = extractedKey.key;
-                            var provider = extractedKey.provider;
-                            
-                            Interlocked.Increment(ref totalKeysFound);
-
-                            var existingKey = await threadDbContext.APIKeys
-                                .FirstOrDefaultAsync(k => k.ApiKey == keyValue, ct);
-
-                            if (existingKey != null)
-                            {
-                                existingKey.LastFoundUTC = DateTime.UtcNow;
-                                Interlocked.Increment(ref duplicatesSkipped);
-                            }
-                            else
-                            {
-                                var newKey = new APIKey
-                                {
-                                    ApiKey = keyValue,
-                                    ApiType = provider.ApiType,
-                                    Status = ApiStatusEnum.Unverified,
-                                    SearchProvider = SearchProviderEnum.GitHub,
-                                    FirstFoundUTC = DateTime.UtcNow,
-                                    LastFoundUTC = DateTime.UtcNow
-                                };
-
-                                threadDbContext.APIKeys.Add(newKey);
-                                await threadDbContext.SaveChangesAsync(ct);
-
-                                repoRef.APIKeyId = newKey.Id;
-                                threadDbContext.RepoReferences.Add(repoRef);
-
-                                Interlocked.Increment(ref newKeysAdded);
-                                Console.WriteLine($"  + New {provider.ProviderName} key found!");
-                            }
-                            await threadDbContext.SaveChangesAsync(ct);
-                        }
-                    }
-
-                    // Update LastSearchUTC
-                    q.LastSearchUTC = DateTime.UtcNow;
-                    await threadDbContext.SaveChangesAsync(ct);
-                }
-                catch (RateLimitExceededException ex)
-                {
-                    _logger?.LogWarning("Rate Limit Hit on Token {TokenIdx}. Reset: {Reset}", currentTokenIndex % githubTokens.Count, ex.Reset);
-                    // Just skip this query for now, other threads continue
+                    providers.Add(threadScope.ServiceProvider.GetRequiredService<UnsecuredAPIKeys.Providers.Search_Providers.GitHubSearchProvider>());
+                    providers.Add(threadScope.ServiceProvider.GetRequiredService<UnsecuredAPIKeys.Providers.Search_Providers.GitLabSearchProvider>());
+                    providers.Add(threadScope.ServiceProvider.GetRequiredService<UnsecuredAPIKeys.Providers.Search_Providers.SourceGraphSearchProvider>());
                 }
                 catch (Exception ex)
                 {
-                    _logger?.LogError(ex, "Error processing query '{Query}'", q.Query);
+                    _logger?.LogWarning("Error resolving search providers: {Message}", ex.Message);
                 }
+
+                foreach (var provider in providers)
+                {
+                    if (ct.IsCancellationRequested) break;
+
+                    SearchProviderEnum providerEnum;
+                    if (provider.ProviderName == "GitHub") providerEnum = SearchProviderEnum.GitHub;
+                    else if (provider.ProviderName == "GitLab") providerEnum = SearchProviderEnum.GitLab;
+                    else if (provider.ProviderName == "SourceGraph") providerEnum = SearchProviderEnum.SourceGraph;
+                    else continue;
+
+                    if (!tokensByProvider.TryGetValue(providerEnum, out var tokens) || !tokens.Any())
+                        continue;
+
+                    // Round-robin token
+                    int currentIdx = tokenIndexes.AddOrUpdate(providerEnum, 0, (k, v) => v + 1);
+                    var token = tokens[currentIdx % tokens.Count];
+
+                    try
+                    {
+                        var repoReferences = await provider.SearchAsync(q, token);
+                        
+                        foreach (var repoRef in repoReferences)
+                        {
+                            if (ct.IsCancellationRequested) break;
+
+                            var extractedKeys = await ProcessRepoReferenceAsync(repoRef, token, threadDbContext, threadHttpClientFactory);
+                             
+                            foreach (var extractedKey in extractedKeys)
+                            {
+                                var keyValue = extractedKey.key;
+                                var keyProvider = extractedKey.provider;
+                                
+                                Interlocked.Increment(ref totalKeysFound);
+
+                                var existingKey = await threadDbContext.APIKeys
+                                    .FirstOrDefaultAsync(k => k.ApiKey == keyValue, ct);
+
+                                if (existingKey != null)
+                                {
+                                    existingKey.LastFoundUTC = DateTime.UtcNow;
+                                    Interlocked.Increment(ref duplicatesSkipped);
+                                }
+                                else
+                                {
+                                    var newKey = new APIKey
+                                    {
+                                        ApiKey = keyValue,
+                                        ApiType = keyProvider.ApiType,
+                                        Status = ApiStatusEnum.Unverified,
+                                        SearchProvider = providerEnum,
+                                        FirstFoundUTC = DateTime.UtcNow,
+                                        LastFoundUTC = DateTime.UtcNow
+                                    };
+
+                                    threadDbContext.APIKeys.Add(newKey);
+                                    await threadDbContext.SaveChangesAsync(ct);
+
+                                    // Link RepReference to Key if possible (RepoReference might need KeyId)
+                                    repoRef.APIKeyId = newKey.Id;
+                                    threadDbContext.RepoReferences.Add(repoRef);
+
+                                    Interlocked.Increment(ref newKeysAdded);
+                                    Console.WriteLine($"  + New {keyProvider.ProviderName} key found on {provider.ProviderName}!");
+                                }
+                                await threadDbContext.SaveChangesAsync(ct);
+                            }
+                        }
+                    }
+                    catch (RateLimitExceededException)
+                    {
+                        _logger?.LogWarning("Rate Limit Hit for {Provider} on Token {TokenIdx}.", provider.ProviderName, currentIdx % tokens.Count);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogError(ex, "Error processing query '{Query}' on {Provider}", q.Query, provider.ProviderName);
+                    }
+                }
+
+                // Update LastSearchUTC
+                q.LastSearchUTC = DateTime.UtcNow;
+                await threadDbContext.SaveChangesAsync(ct);
             });
 
             stopwatch.Stop();
@@ -517,77 +536,13 @@ namespace UnsecuredAPIKeys.Bots.Scraper
             }
         }
 
-        private static async Task<List<RepoReference>> SearchGitHubAsync(
-            SearchQuery query,
-            SearchProviderToken token,
-            DBContext dbContext)
-        {
-            var client = new GitHubClient(new ProductHeaderValue("UnsecuredAPIKeys-Scraper"))
-            {
-                Credentials = new Credentials(token.Token)
-            };
 
-            var results = new List<RepoReference>();
-            int page = 1;
-            const int perPage = 30; // Conservative to stay within rate limits
-
-            try
-            {
-                var request = new SearchCodeRequest(query.Query)
-                {
-                    Page = page,
-                    PerPage = perPage
-                };
-
-                var searchResult = await client.Search.SearchCode(request);
-
-                if (page == 1)
-                {
-                    query.SearchResultsCount = searchResult.TotalCount;
-                    dbContext.SearchQueries.Update(query);
-                    await dbContext.SaveChangesAsync(_cancellationTokenSource!.Token);
-                    
-                    _logger?.LogInformation("Found {Count} total results for '{Query}'",
-                        searchResult.TotalCount, query.Query);
-                    Console.WriteLine($"  Found {searchResult.TotalCount} total results");
-                }
-
-                foreach (var item in searchResult.Items.Take(20)) // Limit to first 20 per query
-                {
-                    results.Add(new RepoReference
-                    {
-                        SearchQueryId = query.Id,
-                        Provider = "GitHub",
-                        RepoOwner = item.Repository?.Owner?.Login,
-                        RepoName = item.Repository?.Name,
-                        FilePath = item.Path,
-                        FileURL = item.HtmlUrl,
-                        ApiContentUrl = item.Url,
-                        Branch = item.Repository?.DefaultBranch,
-                        FileSHA = item.Sha,
-                        FoundUTC = DateTime.UtcNow,
-                        RepoURL = item.Repository?.HtmlUrl,
-                        RepoDescription = item.Repository?.Description,
-                        FileName = item.Name
-                    });
-                }
-            }
-            catch (RateLimitExceededException)
-            {
-                throw; // Re-throw to be handled by caller
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "Error searching GitHub for query '{Query}'", query.Query);
-            }
-
-            return results;
-        }
 
         private static async Task<List<(string key, IApiKeyProvider provider)>> ProcessRepoReferenceAsync(
             RepoReference repoRef,
             SearchProviderToken token,
-            DBContext dbContext)
+            DBContext dbContext,
+            IHttpClientFactory httpClientFactory)
         {
             var foundKeys = new List<(string key, IApiKeyProvider provider)>();
 
@@ -596,8 +551,8 @@ namespace UnsecuredAPIKeys.Bots.Scraper
 
             try
             {
-                // Fetch file content from GitHub API
-                using var httpClient = new HttpClient();
+                // Fetch file content using Factory (Connections pooled)
+                using var httpClient = httpClientFactory.CreateClient();
                 httpClient.DefaultRequestHeaders.Add("Authorization", $"token {token.Token}");
                 httpClient.DefaultRequestHeaders.Add("User-Agent", "UnsecuredAPIKeys-Scraper");
                 httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.github.v3.raw");

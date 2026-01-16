@@ -26,6 +26,7 @@ jobs:
       run: dotnet restore
         
     - name: Run Scraper Bot
+      continue-on-error: true  # Don't fail workflow if bot has issues
       env:
         CONNECTION_STRING: ${{ secrets.CONNECTION_STRING }}
         GITHUB_TOKEN: ${{ secrets.GH_PAT_TOKEN }}
@@ -35,6 +36,7 @@ jobs:
         dotnet run
 
     - name: Run Verifier Bot
+      continue-on-error: true  # Don't fail workflow if bot has issues
       env:
         CONNECTION_STRING: ${{ secrets.CONNECTION_STRING }}
       run: |

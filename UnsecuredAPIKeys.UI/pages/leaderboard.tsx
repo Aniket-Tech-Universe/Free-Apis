@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import Head from "next/head";
 import { Button } from "@heroui/button";
-import { Card, CardBody, CardHeader } from "@heroui/card";
+import { Card, CardBody } from "@heroui/card";
 import { Snippet } from "@heroui/snippet";
 import { Divider } from "@heroui/divider";
 import NextLink from "next/link";
+import Image from "next/image";
 
 import AnimatedNumber from "@/components/AnimatedNumber";
 import { SnitchLeaderboardEntry } from "@/types";
@@ -259,9 +260,12 @@ export default function LeaderboardPage() {
                               </div>
 
                               <div className="flex items-center space-x-3">
-                                <img
+                                <Image
                                   src={avatarUrl}
                                   alt={`${displayName} avatar`}
+                                  width={48}
+                                  height={48}
+                                  unoptimized
                                   className="w-12 h-12 rounded-full border-2 border-gray-200"
                                 />
                                 <div>

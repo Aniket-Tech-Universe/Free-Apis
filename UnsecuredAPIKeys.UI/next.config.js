@@ -11,9 +11,6 @@ const nextConfig = {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'https://unsecured-api.onrender.com'
   },
 
-  // Enhanced optimization settings
-  swcMinify: true, // Use SWC for faster minification
-
   // Compiler optimizations
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production' ? {

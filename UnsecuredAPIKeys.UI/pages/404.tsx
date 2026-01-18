@@ -31,8 +31,8 @@ export default function Custom404() {
           <h1 className="text-4xl font-bold text-danger mb-4">404</h1>
           <h2 className="text-2xl font-semibold mb-4">Page Not Found</h2>
           <p className="text-default-500 mb-6">
-            The page you're looking for doesn't exist or the URL may be malformed.
-            You'll be redirected to the home page in a few seconds.
+            The page you&apos;re looking for doesn&apos;t exist or the URL may be malformed.
+            You&apos;ll be redirected to the home page in a few seconds.
           </p>
           
           <button

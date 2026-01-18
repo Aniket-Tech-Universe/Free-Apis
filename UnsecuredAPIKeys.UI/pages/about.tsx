@@ -1,5 +1,4 @@
 import Head from "next/head";
-import { Link } from "@heroui/link";
 import { Code } from "@heroui/code";
 import { Snippet } from "@heroui/snippet";
 import NextLink from "next/link";

@@ -1,13 +1,6 @@
 // Google Analytics 4 utility functions for static export compatibility
 // This replaces @next/third-parties functionality with custom implementation
 
-declare global {
-  interface Window {
-    gtag: (command: "config" | "event" | "js" | "set", targetId: string, config?: Record<string, any>) => void;
-    dataLayer: any[];
-  }
-}
-
 // Hardcoded GA measurement ID for static export compatibility
 const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || 'YOUR_GA_MEASUREMENT_ID'
 

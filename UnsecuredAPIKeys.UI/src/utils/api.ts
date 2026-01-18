@@ -2,6 +2,8 @@ import * as Sentry from "@sentry/react";
 
 import { ApiResponse, RateLimitResponse } from "@/types";
 
+type RequestInit = globalThis.RequestInit;
+
 // API base URL from environment variables
 // In production (Vercel), use our Render API; locally use localhost
 const API_BASE_URL =

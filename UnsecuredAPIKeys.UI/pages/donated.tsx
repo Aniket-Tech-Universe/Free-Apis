@@ -65,7 +65,7 @@ export default function DonatedPage() {
       }
     };
 
-    const handleRouteChange = (url: string) => {
+    const handleRouteChange = () => {
       if (hasStartedForm && !isSubmitted && !window.confirm(
         "⚠️ If you leave this page, you won't be able to get back to submit your supporter information! " +
         "You'll miss out on being recognized for your generous donation. Are you sure you want to leave?"

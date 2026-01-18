@@ -26,7 +26,7 @@ export default function DonationCounter({ className = "" }: DonationCounterProps
   } | null>(null);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
+    let interval: ReturnType<typeof setInterval> | null = null;
     let isVisible = true;
 
     const fetchStats = async () => {
@@ -149,7 +149,7 @@ export default function DonationCounter({ className = "" }: DonationCounterProps
             className="text-pink-600 dark:text-pink-400"
           />
           <span className="text-default-600 ml-2">
-            times developers have clicked "donate" 
+            times developers have clicked &quot;donate&quot; 
           </span>
         </div>
         
@@ -160,7 +160,7 @@ export default function DonationCounter({ className = "" }: DonationCounterProps
             className="text-green-600 dark:text-green-400"
           />
           <span className="text-default-600 ml-2">
-            has been donated by those who've abused the keys! 
+            has been donated by those who&apos;ve abused the keys! 
           </span>
         </div>
 

@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, Suspense } from "react";
+import { useState, useEffect, useMemo, Suspense, useCallback } from "react";
+import type { Key } from "react";
 import { Link } from "@heroui/link";
 import { Button } from "@heroui/button";
 import { Code } from "@heroui/code";
@@ -6,7 +7,7 @@ import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "@heroui/d
 import Head from "next/head";
 import Cookies from "js-cookie";
 
-import { title, subtitle } from "@/components/primitives";
+import { title } from "@/components/primitives";
 import { GithubIcon } from "@/components/icons";
 import DefaultLayout from "@/layouts/default";
 import { ApiKey, KeyStats, ApiKeyType } from "@/types";
@@ -16,7 +17,6 @@ import Disclaimer from "@/components/Disclaimer";
 import TotalDisplayCounter from "@/components/TotalDisplayCounter";
 import ActiveUserCounter from "@/components/ActiveUserCounter";
 import AnimatedNumber from "@/components/AnimatedNumber";
-import { Tooltip } from "@heroui/tooltip";
 
 // Enhanced Loading Messages
 const loadingMessages = [
@@ -36,14 +36,6 @@ const errorMessages = [
   "Error: Too many developers crying at once. Please try again.",
   "Our servers are having an existential crisis. Again.",
 ];
-
-interface RateLimitInfo {
-  maxRequests: number;
-  discordMaxRequests: number;
-  timeWindowHours: number;
-  description: string;
-  note: string;
-}
 
 export default function IndexPage() {
   const [apiKey, setApiKey] = useState<ApiKey | null>(null);
@@ -87,7 +79,7 @@ export default function IndexPage() {
     }
   };
 
-  const fetchPipelineStatus = async () => {
+  const fetchPipelineStatus = useCallback(async () => {
     try {
       const res = await fetchWithRateLimit<any>("/API/GetPipelineStatus", { requestId: "pipelineStatus" });
       if (res.data && res.data.workflow_runs && res.data.workflow_runs.length > 0) {
@@ -105,14 +97,14 @@ export default function IndexPage() {
     } catch (e) {
       console.error("Failed to fetch pipeline status", e);
     }
-  };
+  }, [pipelineRunning]);
 
   // Poll Pipeline Status
   useEffect(() => {
     fetchPipelineStatus();
     const interval = setInterval(fetchPipelineStatus, 15000); // 15s poll
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchPipelineStatus]);
 
   // Enhanced API type colors with glow effects
   const apiTypeColors: Record<string, { bg: string; text: string; border: string; glow: string }> = {
@@ -257,7 +249,7 @@ export default function IndexPage() {
 
   // Fetch Key Statistics
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
+    let interval: ReturnType<typeof setInterval> | null = null;
     let isVisible = true;
     let errorCount = 0;
     let baseDelay = 30000;
@@ -467,7 +459,7 @@ export default function IndexPage() {
       : "Random (Chaos Mode)";  // Default to Random instead of "Select Type"
   }, [selectedKeyType, apiKeyTypes]);
 
-  const handleSelectionChange = (key: React.Key | undefined) => {
+  const handleSelectionChange = (key: Key | undefined) => {
     const newKeyType = (key === undefined ? "Random" : key) as string | number;
 
     const selectedTypeName = newKeyType === "Random" ? "Random" :
@@ -798,7 +790,7 @@ export default function IndexPage() {
       `}</style>
 
       <Head>
-        <title>Unsecured API Keys - The Wall of "My Boss Hasn't Found Out Yet™"</title>
+        <title>Unsecured API Keys - The Wall of &quot;My Boss Hasn&apos;t Found Out Yet™&quot;</title>
         <meta
           name="description"
           content="Where your private keys go to become public celebrities! Help developers avoid that awkward $50,000 LLM bill. Find and report exposed API keys before the hackers do."
@@ -810,7 +802,7 @@ export default function IndexPage() {
         {/* Open Graph Meta Tags */}
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="Unsecured API Keys" />
-        <meta property="og:title" content="Unsecured API Keys - The Wall of 'My Boss Hasn't Found Out Yet™'" />
+        <meta property="og:title" content="Unsecured API Keys - The Wall of &quot;My Boss Hasn&apos;t Found Out Yet™&quot;" />
         <meta property="og:description" content="Where your private keys go to become public celebrities! Help developers avoid that awkward $50,000 LLM bill." />
         <meta property="og:url" content="https://unsecuredapikeys.com/" />
         <meta property="og:image" content="https://unsecuredapikeys.com/og-image.png" />
@@ -821,7 +813,7 @@ export default function IndexPage() {
 
         {/* Twitter Card Meta Tags */}
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Unsecured API Keys - The Wall of 'My Boss Hasn't Found Out Yet™'" />
+        <meta name="twitter:title" content="Unsecured API Keys - The Wall of &quot;My Boss Hasn&apos;t Found Out Yet™&quot;" />
         <meta name="twitter:description" content="Where your private keys go to become public celebrities! Help developers avoid that awkward $50,000 LLM bill." />
         <meta name="twitter:image" content="https://unsecuredapikeys.com/og-image.png" />
         <meta name="twitter:image:alt" content="Unsecured API Keys - Security Tool for Developers Who Like Their Jobs" />
@@ -980,7 +972,7 @@ export default function IndexPage() {
                 </p>
 
                 <p className="text-sm italic text-default-500">
-                  Error Code: ID-10-T (It's probably your fault somehow)
+                  Error Code: ID-10-T (It&apos;s probably your fault somehow)
                 </p>
               </div>
 
@@ -1112,7 +1104,7 @@ export default function IndexPage() {
                           </span>
                           {apiKey.status === "Valid" && (
                             <span className="text-xs text-default-400">
-                              (your wallet isn't safe yet)
+                              (your wallet isn&apos;t safe yet)
                             </span>
                           )}
                         </div>
@@ -1203,10 +1195,10 @@ export default function IndexPage() {
                         <div className="bg-warning/10 rounded-lg p-4 border border-warning/20">
                           <p className="text-warning font-semibold mb-2">⚠️ Limited Information Available</p>
                           <p className="text-sm text-default-600">
-                            This key doesn't have repository information available. It may have been found without source context.
+                            This key doesn&apos;t have repository information available. It may have been found without source context.
                           </p>
                           <p className="text-xs text-default-500 mt-2 italic">
-                            The key is still valid and exploitable, but we can't show you where it came from! 🕵️
+                            The key is still valid and exploitable, but we can&apos;t show you where it came from! 🕵️
                           </p>
                         </div>
                       </div>

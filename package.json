@@ -6,6 +6,9 @@
     "UnsecuredAPIKeys.UI"
   ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "npm -w UnsecuredAPIKeys.UI run test",
+    "lint": "npm -w UnsecuredAPIKeys.UI run lint",
+    "typecheck": "npm -w UnsecuredAPIKeys.UI run typecheck",
+    "build": "npm -w UnsecuredAPIKeys.UI run build"
   }
 }

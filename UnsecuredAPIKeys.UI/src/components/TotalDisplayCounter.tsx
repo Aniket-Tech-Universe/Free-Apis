@@ -9,31 +9,30 @@ export default function TotalDisplayCounter() {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionState, setConnectionState] = useState<string>("Disconnected");
   const [showMilestone, setShowMilestone] = useState(false);
-  const milestoneTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const milestoneTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastMilestoneRef = useRef<number>(0);
 
   // Easter Egg State
-  const [clickCount, setClickCount] = useState(0);
+  const clickCountRef = useRef(0);
   const [isVaultOpen, setIsVaultOpen] = useState(false);
-  const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [vaultKeys, setVaultKeys] = useState<any[]>([]);
   const [vaultLoading, setVaultLoading] = useState(false);
 
   // Easter Egg Handler
   const handleEasterEggClick = () => {
-    setClickCount(prev => {
-      const newCount = prev + 1;
-      if (newCount >= 5) {
-        setIsVaultOpen(true);
-        loadVaultKeys();
-        return 0;
-      }
-      return newCount;
-    });
+    clickCountRef.current += 1;
+    if (clickCountRef.current >= 5) {
+      setIsVaultOpen(true);
+      loadVaultKeys();
+      clickCountRef.current = 0;
+    }
 
     // Reset count if not clicked quickly enough
     if (clickTimeoutRef.current) clearTimeout(clickTimeoutRef.current);
-    clickTimeoutRef.current = setTimeout(() => setClickCount(0), 2000);
+    clickTimeoutRef.current = setTimeout(() => {
+      clickCountRef.current = 0;
+    }, 2000);
   };
 
   const loadVaultKeys = async () => {

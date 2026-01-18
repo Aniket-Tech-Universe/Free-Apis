@@ -4,7 +4,6 @@ import { useEffect, useMemo } from "react";
 interface AnimatedNumberProps {
   value: string | number;
   className?: string;
-  digitClassName?: string;
   stagger?: number;
 }
 
@@ -56,8 +55,7 @@ const AnimatedDigit = ({
 
 const AnimatedNumber = ({ 
   value, 
-  className, 
-  digitClassName,
+  className,
   stagger = 0.03 
 }: AnimatedNumberProps) => {
   const valueStr = String(value);

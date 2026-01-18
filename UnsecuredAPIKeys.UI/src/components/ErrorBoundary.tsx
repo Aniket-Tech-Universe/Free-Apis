@@ -1,5 +1,4 @@
 import React from 'react'
-import { useRouter } from 'next/router'
 import DefaultLayout from '@/layouts/default'
 
 interface Props {
@@ -40,7 +39,7 @@ class ErrorBoundary extends React.Component<Props, State> {
             <div className="inline-block max-w-lg text-center justify-center">
               <h1 className="text-4xl font-bold text-danger mb-4">Something went wrong</h1>
               <p className="text-default-500 mb-6">
-                We're redirecting you to the home page...
+                We&apos;re redirecting you to the home page...
               </p>
               <button
                 onClick={() => window.location.href = '/'}

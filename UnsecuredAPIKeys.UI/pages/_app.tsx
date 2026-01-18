@@ -30,12 +30,6 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
   })
 }
 
-declare module "@react-types/shared" {
-  interface RouterConfig {
-    routerOptions: any
-  }
-}
-
 function MyApp({ Component, pageProps }: AppProps) {
   const router = useRouter()
 

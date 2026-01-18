@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import Image from "next/image";
 import { Button } from '@heroui/button';
 import { DiscordIcon } from '@/components/icons';
 
@@ -62,9 +63,12 @@ export default function DiscordLogin() {
       <div className="flex flex-col sm:flex-row items-center gap-3 p-4 bg-gradient-to-r from-indigo-500/10 to-purple-500/10 rounded-lg border border-indigo-500/20">
         <div className="flex items-center gap-3">
           {user.avatar && (
-            <img
+            <Image
               src={`https://cdn.discordapp.com/avatars/${user.discordId}/${user.avatar}.png`}
               alt="Discord Avatar"
+              width={32}
+              height={32}
+              unoptimized
               className="w-8 h-8 rounded-full"
             />
           )}

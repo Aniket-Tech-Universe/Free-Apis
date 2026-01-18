@@ -3,7 +3,7 @@ import * as signalR from "@microsoft/signalr";
 class SignalRService {
   private connection: signalR.HubConnection | null = null;
   private isInitializing = false;
-  private listeners: { [event: string]: Array<(...args: any[]) => void> } = {};
+  private listeners: { [event: string]: Array<(..._args: any[]) => void> } = {};
   private connectionState: string = "Disconnected";
   private isConnected = false;
 
@@ -99,7 +99,7 @@ class SignalRService {
     });
   }
 
-  async on(event: string, callback: (...args: any[]) => void) {
+  async on(event: string, callback: (..._args: any[]) => void) {
     if (!this.listeners[event]) {
       this.listeners[event] = [];
     }
@@ -109,7 +109,7 @@ class SignalRService {
     connection.on(event, callback);
   }
 
-  async off(event: string, callback: (...args: any[]) => void) {
+  async off(event: string, callback: (..._args: any[]) => void) {
     if (this.listeners[event]) {
       this.listeners[event] = this.listeners[event].filter(c => c !== callback);
     }
@@ -119,9 +119,9 @@ class SignalRService {
     }
   }
 
-  async invoke(method: string, ...args: any[]) {
+  async invoke(method: string, ..._args: any[]) {
     const connection = await this.getConnection();
-    return connection.invoke(method, ...args);
+    return connection.invoke(method, ..._args);
   }
 
   getConnectionState() {

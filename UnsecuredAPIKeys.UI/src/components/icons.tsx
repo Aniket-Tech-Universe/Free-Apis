@@ -3,18 +3,21 @@ import * as React from "react";
 import { IconSvgProps } from "@/types";
 
 export const Logo: React.FC<IconSvgProps> = ({
-  size: _size = 36,
-  height: _height,
+  size = 36,
+  width,
+  height,
   ...props
 }) => (
   <svg
     aria-label="Unsecured API Keys Logo"
     className="size-6"
     fill="none"
+    height={size || height}
     role="img"
     stroke="currentColor"
     strokeWidth="1.5"
     viewBox="0 0 24 24"
+    width={size || width}
     xmlns="http://www.w3.org/2000/svg"
     {...props}
   >
